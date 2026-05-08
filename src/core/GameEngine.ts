@@ -11,6 +11,9 @@ import { EventEmitter } from './EventEmitter';
 import { GameSaveData } from './types';
 import { BuildSystem } from '../systems/BuildSystem';
 import { InventorySystem } from '../systems/InventorySystem';
+import { StorySystem } from '../systems/StorySystem';
+import { SoundSystem } from '../systems/SoundSystem';
+import { AchievementSystem } from '../systems/AchievementSystem';
 import { Vector3 } from './types';
 
 export class GameEngine extends EventEmitter {
@@ -26,6 +29,9 @@ export class GameEngine extends EventEmitter {
   private inputManager!: InputManager;
   private buildSystem!: BuildSystem;
   private inventorySystem!: InventorySystem;
+  private storySystem!: StorySystem;
+  private soundSystem!: SoundSystem;
+  private achievementSystem!: AchievementSystem;
   
   private clock: THREE.Clock;
   private isRunning: boolean = false;
@@ -48,7 +54,6 @@ export class GameEngine extends EventEmitter {
       this.setupCamera();
       this.setupLighting();
       this.setupSystems();
-      this.setupEventListeners();
       
       this.emit('engineReady');
       console.log('🎮 《星野栖所》游戏引擎初始化完成');
@@ -134,7 +139,18 @@ export class GameEngine extends EventEmitter {
     this.uiManager = new UIManager();
     this.inventorySystem = new InventorySystem();
     this.buildSystem = new BuildSystem(this.scene, this.camera);
+    this.buildSystem.setDOMElement(this.renderer.domElement);
+    this.storySystem = new StorySystem();
+    this.soundSystem = new SoundSystem();
+    this.achievementSystem = new AchievementSystem();
+    this.setupEventListeners();
     this.setupCropInteraction();
+    this.initializeSoundSystem();
+  }
+  
+  private async initializeSoundSystem(): Promise<void> {
+    await this.soundSystem.initialize();
+    this.soundSystem.playMusic('ambient_nature', true);
   }
 
   private setupEventListeners(): void {
@@ -552,6 +568,22 @@ export class GameEngine extends EventEmitter {
 
   public getUIManager(): UIManager {
     return this.uiManager;
+  }
+  
+  public getStorySystem(): StorySystem {
+    return this.storySystem;
+  }
+  
+  public getSoundSystem(): SoundSystem {
+    return this.soundSystem;
+  }
+  
+  public getAchievementSystem(): AchievementSystem {
+    return this.achievementSystem;
+  }
+  
+  public startStoryDialogue(): void {
+    this.storySystem.startDialogue('prologue');
   }
 
   public getScene(): THREE.Scene {

@@ -16,6 +16,7 @@ export class BuildSystem extends EventEmitter {
   private camera: THREE.Camera;
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
+  private domElement: HTMLElement | null = null;
 
   private buildingDefs: Map<string, BuildingDefinition> = new Map();
   private placedBuildings: Map<string, PlacedBuilding> = new Map();
@@ -186,6 +187,18 @@ export class BuildSystem extends EventEmitter {
     }
   }
 
+  public setDOMElement(element: HTMLElement): void {
+    this.domElement = element;
+    element.addEventListener('mousemove', this.onMouseMove.bind(this));
+  }
+
+  private onMouseMove(event: MouseEvent): void {
+    if (!this.domElement) return;
+    const rect = this.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  }
+
   public enterEditMode(): void {
     this.isEditMode = true;
     this.showGrid();
@@ -239,6 +252,7 @@ export class BuildSystem extends EventEmitter {
 
   public update(_deltaTime: number): void {
     if (!this.isEditMode) return;
+    if (!this.domElement) return;
     this.updatePreview();
   }
 

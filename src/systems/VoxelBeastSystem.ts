@@ -450,7 +450,7 @@ export class VoxelBeastSystem extends EventEmitter {
     });
   }
   
-  private createCloudBird(group: THREE.Group, body: THREE.Material, dark: THREE.Material, light: THREE.Material, size: number): void {
+  private createCloudBird(group: THREE.Group, body: THREE.Material, _dark: THREE.Material, light: THREE.Material, size: number): void {
     const bodyGeom = new THREE.SphereGeometry(size * 0.3, 8, 8);
     bodyGeom.scale(1.5, 1, 1);
     const bodyMesh = new THREE.Mesh(bodyGeom, body);
@@ -607,7 +607,7 @@ export class VoxelBeastSystem extends EventEmitter {
     }
   }
   
-  private createMoonRabbit(group: THREE.Group, body: THREE.Material, dark: THREE.Material, _light: THREE.Material, size: number): void {
+  private createMoonRabbit(group: THREE.Group, body: THREE.Material, _dark: THREE.Material, _light: THREE.Material, size: number): void {
     const bodyGeom = new THREE.SphereGeometry(size * 0.3, 8, 8);
     const bodyMesh = new THREE.Mesh(bodyGeom, body);
     bodyMesh.position.y = size * 0.35;
@@ -621,13 +621,14 @@ export class VoxelBeastSystem extends EventEmitter {
     group.add(headMesh);
     
     const earGeom = new THREE.CapsuleGeometry(size * 0.06, size * 0.35, 4, 8);
-    const earL = new THREE.Mesh(earGeom, light);
+    const earMat = new THREE.MeshStandardMaterial({ color: 0xF5F5F5, roughness: 0.6 });
+    const earL = new THREE.Mesh(earGeom, earMat);
     earL.position.set(size * 0.15, size * 0.85, size * 0.08);
     earL.rotation.z = 0.2;
     earL.userData.isEar = true;
     earL.userData.isLongEar = true;
     group.add(earL);
-    const earR = new THREE.Mesh(earGeom, light);
+    const earR = new THREE.Mesh(earGeom, earMat);
     earR.position.set(size * 0.15, size * 0.85, -size * 0.08);
     earR.rotation.z = -0.2;
     earR.userData.isEar = true;
@@ -669,7 +670,8 @@ export class VoxelBeastSystem extends EventEmitter {
     group.add(nose);
     
     const tailGeom = new THREE.SphereGeometry(size * 0.1, 6, 6);
-    const tailMesh = new THREE.Mesh(tailGeom, light);
+    const tailMat = new THREE.MeshStandardMaterial({ color: 0xF5F5F5, roughness: 0.6 });
+    const tailMesh = new THREE.Mesh(tailGeom, tailMat);
     tailMesh.position.set(-size * 0.25, size * 0.3, 0);
     tailMesh.userData.isTail = true;
     group.add(tailMesh);
@@ -761,7 +763,6 @@ export class VoxelBeastSystem extends EventEmitter {
         opacity: 0.8
       });
       const flame = new THREE.Mesh(flameGeom, flameMat);
-      const angle = (i / 8) * Math.PI * 2;
       flame.position.set(
         (Math.random() - 0.5) * size * 0.3,
         size * 0.3 + Math.random() * size * 0.3,
