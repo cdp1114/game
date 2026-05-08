@@ -154,9 +154,11 @@ export class GameEngine extends EventEmitter {
     });
     this.buildSystem.on('build:edit_mode_entered', () => {
       this.uiManager.showNotification('进入建造模式');
+      this.uiManager.showBuildPanel();
     });
     this.buildSystem.on('build:edit_mode_exited', () => {
       this.uiManager.showNotification('退出建造模式');
+      this.uiManager.hideBuildPanel();
     });
     
     this.inventorySystem.on('shop:item_purchased', (data: any) => {
@@ -219,8 +221,22 @@ export class GameEngine extends EventEmitter {
         } else if (this.buildSystem.getSelectedTool()) {
           this.buildSystem.useTerrainTool(data.position);
         }
-      } else {
-        this.cropSystem.tryPlantSeedAt(data.position);
+      } else if (this.selectedCropId) {
+        this.cropSystem.plantCrop(this.selectedCropId, data.position);
+        this.selectedCropId = null;
+      }
+    });
+
+    this.inputManager.on('objectSelect', (data: any) => {
+      if (data.object?.userData?.cropId) {
+        const crop = this.cropSystem.getCrop(data.object.userData.cropId);
+        if (crop) {
+          this.uiManager.showCropInfo(crop);
+          if (crop.isHarvestable) {
+            this.cropSystem.harvestCrop(crop.id);
+            this.uiManager.showNotification(`收获了 ${crop.data.name}！`, 'success');
+          }
+        }
       }
     });
   }

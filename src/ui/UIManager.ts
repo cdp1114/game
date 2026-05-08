@@ -1,6 +1,7 @@
 // 《星野栖所》UI管理器 - HUD显示和信息面板
 
 import { Season, Weather, DayPhase } from '../core/types';
+import { EventEmitter } from '../core/EventEmitter';
 
 // SVG图标定义
 const SVG_ICONS = {
@@ -29,7 +30,7 @@ const SVG_ICONS = {
   }
 };
 
-export class UIManager {
+export class UIManager extends EventEmitter {
   private timeDisplay: HTMLElement | null = null;
   private weatherDisplay: HTMLElement | null = null;
   private seasonDisplay: HTMLElement | null = null;
@@ -68,6 +69,7 @@ export class UIManager {
   }
 
   constructor() {
+    super();
     this.initializeElements();
     this.createNotificationSystem();
   }
@@ -425,7 +427,7 @@ export class UIManager {
           生长时间: ${crop.growthTime}分钟
         </div>
         <div style="font-size:11px;color:#90EE90;">
-          收获: ${crop.harvestYield.map(y => `${y.itemId} x${y.amount}`).join(', ')}
+          收获: ${crop.harvestYield.map((y: { itemId: string; amount: number }) => `${y.itemId} x${y.amount}`).join(', ')}
         </div>
       </div>
     `).join('');
@@ -695,12 +697,13 @@ export class UIManager {
   }
 
   public dispose(): void {
-    const elements = ['fps-display', 'phase-display', 'tooltip', 'notification-container', 'action-bar', 'controls-hint'];
+    const elements = ['fps-display', 'phase-display', 'tooltip', 'notification-container', 'action-bar', 'controls-hint', 'crop-panel', 'build-panel', 'inventory-panel', 'crop-info'];
     elements.forEach(id => {
       const element = document.getElementById(id);
       if (element) {
         element.remove();
       }
     });
+    this.removeAllListeners();
   }
 }

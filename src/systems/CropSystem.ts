@@ -379,6 +379,10 @@ export class CropSystem extends EventEmitter {
     return this.crops.get(instanceId);
   }
 
+  public getCropConfig(cropId: string): CropData | undefined {
+    return this.cropConfigs.get(cropId);
+  }
+
   public getAllCrops(): CropInstance[] {
     return Array.from(this.crops.values());
   }
