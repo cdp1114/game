@@ -47,7 +47,16 @@ export enum BeastType {
 export enum BuildingType {
   BASIC = 'BASIC',
   DECORATION = 'DECORATION',
-  SPECIAL = 'SPECIAL'
+  SPECIAL = 'SPECIAL',
+  TERRAIN_TOOL = 'TERRAIN_TOOL'
+}
+
+export enum InventoryItemType {
+  RESOURCE = 'RESOURCE',
+  CROP = 'CROP',
+  BEAST_FOOD = 'BEAST_FOOD',
+  BUILDING = 'BUILDING',
+  CURRENCY = 'CURRENCY'
 }
 
 // ==================== 接口定义 ====================

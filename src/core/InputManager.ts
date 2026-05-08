@@ -118,7 +118,20 @@ export class InputManager extends EventEmitter {
 
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    
+
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const intersection = new THREE.Vector3();
+    this.raycaster.setFromCamera(this.mouse, this.camera);
+    const hit = this.raycaster.ray.intersectPlane(plane, intersection);
+
+    if (hit) {
+      this.emit('click', {
+        position: { x: intersection.x, y: 0, z: intersection.z },
+        screenX: event.clientX,
+        screenY: event.clientY
+      });
+    }
+
     this.emit('objectSelect', {
       mouse: this.mouse.clone(),
       screenX: event.clientX,
@@ -146,8 +159,6 @@ export class InputManager extends EventEmitter {
     
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
-    
-    const distance = cameraPosition.length();
     
     const spherical = new THREE.Spherical();
     spherical.setFromVector3(cameraPosition);

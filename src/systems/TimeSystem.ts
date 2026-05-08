@@ -24,12 +24,11 @@ export class TimeSystem extends EventEmitter {
   private currentWeather: Weather = Weather.CLEAR;
   private currentDayPhase: DayPhase = DayPhase.NOON;
   
-  private lastUpdateTime: number = 0;
   private isPaused: boolean = false;
   private consecutiveRainDays: number = 0;
 
-  private dayPhaseConfigs: Map<DayPhase, DayPhaseConfig>;
-  private weatherConfigs: Map<Weather, WeatherConfig>;
+  private dayPhaseConfigs: Map<DayPhase, DayPhaseConfig> = new Map();
+  private weatherConfigs: Map<Weather, WeatherConfig> = new Map();
   
   // 各季节的天气概率表（总和=1.0）
   private seasonWeatherProbabilities: Record<Season, SeasonWeatherProbabilities> = {

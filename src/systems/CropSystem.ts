@@ -2,7 +2,7 @@
 
 import * as THREE from 'three';
 import { TimeSystem } from './TimeSystem';
-import { CropData, CropSaveData, Season, Weather, Vector3 } from '../core/types';
+import { CropData, CropSaveData, CropType, Season, Weather, Vector3 } from '../core/types';
 import { EventEmitter } from '../core/EventEmitter';
 
 interface CropInstance {
@@ -38,7 +38,7 @@ export class CropSystem extends EventEmitter {
       {
         id: 'wheat',
         name: '小麦',
-        type: 'BASIC',
+        type: CropType.BASIC,
         growthTime: 60, // 60分钟
         seasons: [Season.SPRING, Season.SUMMER, Season.AUTUMN, Season.WINTER],
         harvestYield: [{ itemId: 'wheat_grain', amount: 3 }],
@@ -49,7 +49,7 @@ export class CropSystem extends EventEmitter {
       {
         id: 'tomato',
         name: '番茄',
-        type: 'BASIC',
+        type: CropType.BASIC,
         growthTime: 45,
         seasons: [Season.SPRING, Season.SUMMER, Season.AUTUMN],
         harvestYield: [{ itemId: 'tomato', amount: 4 }],
@@ -60,7 +60,7 @@ export class CropSystem extends EventEmitter {
       {
         id: 'carrot',
         name: '胡萝卜',
-        type: 'BASIC',
+        type: CropType.BASIC,
         growthTime: 40,
         seasons: [Season.SPRING, Season.SUMMER, Season.AUTUMN],
         harvestYield: [{ itemId: 'carrot', amount: 3 }],
@@ -69,7 +69,7 @@ export class CropSystem extends EventEmitter {
       {
         id: 'cabbage',
         name: '卷心菜',
-        type: 'BASIC',
+        type: CropType.BASIC,
         growthTime: 50,
         seasons: [Season.SPRING, Season.AUTUMN, Season.WINTER],
         harvestYield: [{ itemId: 'cabbage', amount: 2 }],
@@ -82,7 +82,7 @@ export class CropSystem extends EventEmitter {
       {
         id: 'star_flower',
         name: '星绒花',
-        type: 'STAR_PLANT',
+        type: CropType.STAR_PLANT,
         growthTime: 90,
         seasons: [Season.SPRING, Season.SUMMER],
         weatherRequirement: [Weather.CLEAR, Weather.STAR_RAIN],
@@ -94,10 +94,10 @@ export class CropSystem extends EventEmitter {
       {
         id: 'moon_fruit',
         name: '月华果',
-        type: 'STAR_PLANT',
+        type: CropType.STAR_PLANT,
         growthTime: 120,
         seasons: [Season.SUMMER, Season.AUTUMN],
-        weatherRequirement: [Weather.NIGHT],
+        weatherRequirement: [Weather.CLEAR],
         harvestYield: [{ itemId: 'moon_crystal', amount: 3 }],
         adjacentBonus: [
           { neighborType: 'star_flower', bonusType: 'YIELD', bonusValue: 0.30 }
@@ -250,7 +250,7 @@ export class CropSystem extends EventEmitter {
   private calculateAdjacentBonus(crop: CropInstance): void {
     let totalBonus = 0;
     
-    this.crops.forEach((otherCrop, otherId) => {
+    this.crops.forEach((otherCrop) => {
       if (otherCrop.id === crop.id) return;
       
       const distance = Math.sqrt(
@@ -274,12 +274,12 @@ export class CropSystem extends EventEmitter {
     crop.adjacentBonus = totalBonus;
   }
 
-  public update(deltaTime: number): void {
+  public update(_deltaTime: number): void {
     const currentTime = Date.now();
     const weatherConfig = this.timeSystem.getWeatherConfig();
     const weatherMultiplier = weatherConfig?.effects.cropGrowthMultiplier || 1.0;
 
-    this.crops.forEach((crop, instanceId) => {
+    this.crops.forEach((crop) => {
       if (crop.isHarvestable) return;
 
       // 计算生长进度
@@ -326,7 +326,8 @@ export class CropSystem extends EventEmitter {
         const phase = object.userData.phase;
         const scale = 0.8 + Math.sin(currentTime * 0.003 + phase) * 0.3;
         object.scale.setScalar(scale);
-        (object as THREE.Mesh).material.opacity = 0.5 + Math.sin(currentTime * 0.005 + phase) * 0.3;
+        const mat = (object as THREE.Mesh).material as THREE.Material;
+        mat.opacity = 0.5 + Math.sin(currentTime * 0.005 + phase) * 0.3;
       }
       
       // 微风摆动效果
@@ -402,6 +403,26 @@ export class CropSystem extends EventEmitter {
       this.harvestCrop(crop.id);
     });
     console.log(`批量收获了 ${harvestableCrops.length} 个作物`);
+  }
+
+  public tryPlantSeedAt(position: Vector3): void {
+    const timeData = this.timeSystem.getTimeData();
+    const currentSeason = timeData.season as Season;
+    const currentWeather = timeData.weather as Weather;
+
+    const suitableCrops: CropData[] = [];
+    this.cropConfigs.forEach((crop) => {
+      if (
+        crop.seasons.includes(currentSeason) &&
+        (!crop.weatherRequirement || crop.weatherRequirement.includes(currentWeather))
+      ) {
+        suitableCrops.push(crop);
+      }
+    });
+
+    if (suitableCrops.length === 0) return;
+
+    this.plantCrop(suitableCrops[0].id, position);
   }
 
   public getSaveData(): CropSaveData[] {

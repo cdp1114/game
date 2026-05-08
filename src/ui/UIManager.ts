@@ -35,9 +35,19 @@ export class UIManager {
   private seasonDisplay: HTMLElement | null = null;
   private fpsDisplay: HTMLElement | null = null;
   private phaseDisplay: HTMLElement | null = null;
-
   private tooltipElement: HTMLElement | null = null;
   private notificationContainer: HTMLElement | null = null;
+
+  private actionCallbacks: Record<string, () => void> = {
+    plant: () => this.showNotification('点击地面即可种植适配当前季节的作物', 'info'),
+    build: () => this.showNotification('按 B 键进入/退出建造模式', 'info'),
+    beast: () => this.showNotification('异兽系统开发中...', 'info'),
+    menu: () => this.showNotification('菜单系统开发中...', 'info')
+  };
+
+  public setActionCallback(actionId: string, callback: () => void): void {
+    this.actionCallbacks[actionId] = callback;
+  }
 
   constructor() {
     this.initializeElements();
@@ -104,7 +114,8 @@ export class UIManager {
       `;
       
       button.addEventListener('click', () => {
-        this.showNotification(`${action.label}功能开发中...`, 'info');
+        const callback = this.actionCallbacks[action.id];
+        if (callback) callback();
       });
       
       actionBar.appendChild(button);
@@ -251,7 +262,7 @@ export class UIManager {
   }
 
   private getNotificationIcon(type: string): string {
-    const icons = {
+    const icons: Record<string, string> = {
       info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>',
       success: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
       warning: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
@@ -290,6 +301,36 @@ export class UIManager {
 
   public showBeastNotification(beastName: string, action: string): void {
     this.showNotification(`${beastName} ${action}`, 'info');
+  }
+
+  public toggleInventory(): void {
+    const existing = document.getElementById('inventory-panel');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+    this.showInventoryPanel();
+  }
+
+  private showInventoryPanel(): void {
+    const panel = document.createElement('div');
+    panel.id = 'inventory-panel';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(0,0,0,0.9)',
+      color: '#fff',
+      padding: '20px',
+      borderRadius: '12px',
+      fontSize: '14px',
+      zIndex: '1000',
+      minWidth: '300px',
+      maxWidth: '500px'
+    });
+    panel.innerHTML = `<h3 style="margin:0 0 10px">🎒 背包</h3><p>功能开发中...</p><button onclick="this.parentElement.remove()" style="margin-top:10px;padding:5px 10px;cursor:pointer">关闭</button>`;
+    document.body.appendChild(panel);
   }
 
   public dispose(): void {
