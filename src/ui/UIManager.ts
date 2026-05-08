@@ -44,13 +44,14 @@ export class UIManager extends EventEmitter {
   private actionCallbacks: Record<string, () => void> = {
     plant: () => this.showCropPanel(),
     build: () => this.showBuildPanel(),
-    beast: () => this.showNotification('异兽系统开发中...', 'info'),
+    beast: () => this.showBeastPanel(),
     menu: () => this.showNotification('菜单系统开发中...', 'info')
   };
 
   private cropSelectCallback: ((cropId: string) => void) | null = null;
   private buildingSelectCallback: ((buildingId: string) => void) | null = null;
   private toolSelectCallback: ((toolId: string) => void) | null = null;
+  private beastSelectCallback: ((beastId: string) => void) | null = null;
 
   public setCropSelectCallback(callback: (cropId: string) => void): void {
     this.cropSelectCallback = callback;
@@ -62,6 +63,10 @@ export class UIManager extends EventEmitter {
 
   public setToolSelectCallback(callback: (toolId: string) => void): void {
     this.toolSelectCallback = callback;
+  }
+
+  public setBeastSelectCallback(callback: (beastId: string) => void): void {
+    this.beastSelectCallback = callback;
   }
 
   public setActionCallback(actionId: string, callback: () => void): void {
@@ -696,8 +701,307 @@ export class UIManager extends EventEmitter {
     }
   }
 
+  public showBeastPanel(): void {
+    const existing = document.getElementById('beast-panel');
+    if (existing) {
+      existing.remove();
+      this.beastPanel = null;
+      return;
+    }
+
+    this.beastPanel = document.createElement('div');
+    this.beastPanel.id = 'beast-panel';
+    Object.assign(this.beastPanel.style, {
+      position: 'fixed',
+      top: '50%',
+      right: '20px',
+      transform: 'translateY(-50%)',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '16px',
+      fontSize: '13px',
+      zIndex: '999',
+      width: '320px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+    });
+
+    this.beastPanel.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:16px;gap:8px;">
+        <span style="font-size:20px;">🐾</span>
+        <span style="font-size:18px;font-weight:bold;">我的异兽</span>
+      </div>
+      <div id="beast-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">喂食异兽提升亲密度</div>
+        <div id="beast-food-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+    `;
+    document.body.appendChild(this.beastPanel);
+
+    this.updateBeastList();
+    this.updateBeastFoodList();
+  }
+
+  public updateBeastList(): void {
+    const beastList = document.getElementById('beast-list');
+    if (!beastList) return;
+
+    const beasts = this.getBeastConfigs();
+    if (beasts.length === 0) {
+      beastList.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.7;">还没有召唤任何异兽</div>';
+      return;
+    }
+
+    beastList.innerHTML = beasts.map(beast => {
+      const intimacyPercent = Math.round((beast.intimacy / beast.maxIntimacy) * 100);
+      const statusText = this.getBeastStatusText(beast.behaviorTree);
+      return `
+        <div class="beast-item" data-beast-id="${beast.id}" style="
+          background: rgba(255,255,255,0.08);
+          padding: 14px;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+          border: 1px solid transparent;
+        " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(200,150,255,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:32px;">${this.getBeastEmoji(beast.type)}</span>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span style="font-weight:bold;font-size:15px;">${beast.name}</span>
+                <span style="font-size:11px;opacity:0.6;">Lv.${Math.floor(beast.intimacy / 200) + 1}</span>
+              </div>
+              <div style="font-size:11px;opacity:0.7;margin-bottom:6px;">${beast.description}</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:#FFB6C1;">❤ ${intimacyPercent}%</span>
+                <span style="font-size:10px;color:#87CEEB;">${statusText}</span>
+              </div>
+              <div style="background:rgba(255,255,255,0.1);height:4px;border-radius:2px;margin-top:6px;overflow:hidden;">
+                <div style="width:${intimacyPercent}%;height:100%;background:linear-gradient(90deg,#FF6B6B,#FFB6C1);transition:width 0.3s;"></div>
+              </div>
+            </div>
+          </div>
+          ${beast.abilities.length > 0 ? `
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);">
+              <div style="font-size:11px;opacity:0.6;margin-bottom:6px;">能力</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                ${beast.abilities.map(ability => `
+                  <span style="
+                    font-size:10px;
+                    padding:3px 8px;
+                    background:${ability.unlockIntimacy <= beast.intimacy ? 'rgba(100,200,100,0.3)' : 'rgba(100,100,100,0.3)'};
+                    border-radius:4px;
+                  ">${ability.name}</span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    beastList.querySelectorAll('.beast-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const beastId = item.getAttribute('data-beast-id');
+        if (beastId && this.beastSelectCallback) {
+          this.beastSelectCallback(beastId);
+          this.showNotification(`与 ${beasts.find(b => b.id === beastId)?.name} 互动中...`, 'success');
+        }
+      });
+    });
+  }
+
+  public updateBeastFoodList(): void {
+    const foodList = document.getElementById('beast-food-list');
+    if (!foodList) return;
+
+    const foods = this.getBeastFoods();
+    foodList.innerHTML = foods.map(food => `
+      <div class="food-item" data-food-id="${food.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size:12px;
+        display:flex;
+        align-items:center;
+        gap:6px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,200,150,0.2)';this.style.borderColor='rgba(255,180,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';" onclick="alert('选择要喂食的异兽后，点击这里喂食')">
+        <span>${food.emoji}</span>
+        <span>${food.name}</span>
+      </div>
+    `).join('');
+  }
+
+  private getBeastEmoji(type: string): string {
+    const emojis: Record<string, string> = {
+      STAR_BUNNY: '🐰',
+      CLOUD_BIRD: '🐦',
+      FOG_DEER: '🦌',
+      CRYSTAL_DOLPHIN: '🐬',
+      STAR_FOX: '🦊'
+    };
+    return emojis[type] || '🐾';
+  }
+
+  private getBeastStatusText(behaviorTree: string): string {
+    const statusTexts: Record<string, string> = {
+      star_bunny: '采集中',
+      cloud_bird: '飞行中',
+      fog_deer: '巡视中',
+      crystal_dolphin: '游泳中',
+      star_fox: '休憩中'
+    };
+    return statusTexts[behaviorTree] || '空闲';
+  }
+
+  private getBeastConfigs(): any[] {
+    return [
+      {
+        id: 'star_bunny',
+        name: '星绒兔',
+        type: 'STAR_BUNNY',
+        description: '毛茸茸的小兔子，会自动巡逻农田',
+        intimacy: 250,
+        maxIntimacy: 1000,
+        behaviorTree: 'star_bunny',
+        abilities: [
+          { name: '自动采集', unlockIntimacy: 0 },
+          { name: '自动播种', unlockIntimacy: 500 }
+        ]
+      },
+      {
+        id: 'cloud_bird',
+        name: '云羽雀',
+        type: 'CLOUD_BIRD',
+        description: '高空飞行的鸟类，会拾取浮空星材',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'cloud_bird',
+        abilities: [
+          { name: '高空探索', unlockIntimacy: 0 }
+        ]
+      },
+      {
+        id: 'fog_deer',
+        name: '雾灵鹿',
+        type: 'FOG_DEER',
+        description: '优雅生物，范围内作物产量+20%',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'fog_deer',
+        abilities: [
+          { name: '产量增益', unlockIntimacy: 0 }
+        ]
+      },
+      {
+        id: 'crystal_dolphin',
+        name: '晶溪豚',
+        type: 'CRYSTAL_DOLPHIN',
+        description: '水域生物，净化水域提升品质',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'crystal_dolphin',
+        abilities: [
+          { name: '水域净化', unlockIntimacy: 0 }
+        ]
+      },
+      {
+        id: 'star_fox',
+        name: '星巡狐',
+        type: 'STAR_FOX',
+        description: '夜间激活，探索隐藏宝箱',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'star_fox',
+        abilities: [
+          { name: '夜间探索', unlockIntimacy: 0 }
+        ]
+      }
+    ];
+  }
+
+  private getBeastFoods(): any[] {
+    return [
+      { id: 'bunny_treat', name: '星兔点心', emoji: '🥕' },
+      { id: 'bird_seed_mix', name: '云雀混合粮', emoji: '🌾' },
+      { id: 'deer_moss', name: '雾鹿苔藓', emoji: '🌿' },
+      { id: 'fish_treat', name: '晶溪鱼干', emoji: '🐟' },
+      { id: 'berry_mix', name: '星果拼盘', emoji: '🍇' }
+    ];
+  }
+
+  public showBeastInfo(beast: any): void {
+    const existing = document.getElementById('beast-info');
+    if (existing) existing.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'beast-info';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '100px',
+      left: '20px',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '12px',
+      fontSize: '13px',
+      zIndex: '998',
+      minWidth: '220px',
+      border: '1px solid rgba(255,255,255,0.1)'
+    });
+
+    const intimacyPercent = Math.round((beast.intimacy / beast.maxIntimacy) * 100);
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <span style="font-size:28px;">${this.getBeastEmoji(beast.type)}</span>
+        <div>
+          <div style="font-weight:bold;font-size:15px;">${beast.name}</div>
+          <div style="font-size:11px;opacity:0.6;">等级 ${Math.floor(beast.intimacy / 200) + 1}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="opacity:0.7;">亲密度</span>
+          <span style="color:#FFB6C1;">${beast.intimacy}/${beast.maxIntimacy}</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);height:6px;border-radius:3px;overflow:hidden;">
+          <div style="width:${intimacyPercent}%;height:100%;background:linear-gradient(90deg,#FF6B6B,#FFB6C1);transition:width 0.3s;"></div>
+        </div>
+      </div>
+      <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">${beast.description}</div>
+      ${beast.currentTask ? `
+        <div style="font-size:11px;padding:6px 10px;background:rgba(135,206,235,0.2);border-radius:6px;">
+          当前状态: <span style="color:#87CEEB;">${this.getBeastStatusText(beast.behaviorTree || beast.id)}</span>
+        </div>
+      ` : ''}
+    `;
+    document.body.appendChild(panel);
+
+    setTimeout(() => {
+      panel.style.opacity = '0';
+      panel.style.transition = 'opacity 0.3s';
+      setTimeout(() => panel.remove(), 300);
+    }, 4000);
+  }
+
+  public hideBeastPanel(): void {
+    const existing = document.getElementById('beast-panel');
+    if (existing) {
+      existing.remove();
+      this.beastPanel = null;
+    }
+  }
+
   public dispose(): void {
-    const elements = ['fps-display', 'phase-display', 'tooltip', 'notification-container', 'action-bar', 'controls-hint', 'crop-panel', 'build-panel', 'inventory-panel', 'crop-info'];
+    const elements = ['fps-display', 'phase-display', 'tooltip', 'notification-container', 'action-bar', 'controls-hint', 'crop-panel', 'build-panel', 'inventory-panel', 'crop-info', 'beast-panel', 'beast-info'];
     elements.forEach(id => {
       const element = document.getElementById(id);
       if (element) {
