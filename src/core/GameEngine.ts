@@ -189,8 +189,21 @@ export class GameEngine extends EventEmitter {
     });
 
     this.uiManager.setActionCallback('menu', () => {
+      this.uiManager.showMainMenu();
+    });
+
+    this.uiManager.setMenuCallback('save', () => {
       this.saveGame();
       this.uiManager.showNotification('游戏已保存', 'success');
+    });
+
+    this.uiManager.setMenuCallback('load', () => {
+      const loaded = this.loadGame();
+      if (loaded) {
+        this.uiManager.showNotification('游戏已加载', 'success');
+      } else {
+        this.uiManager.showNotification('没有找到存档', 'warning');
+      }
     });
 
     this.uiManager.setCropSelectCallback((cropId: string) => {

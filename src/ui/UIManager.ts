@@ -40,18 +40,20 @@ export class UIManager extends EventEmitter {
   private notificationContainer: HTMLElement | null = null;
   private cropPanel: HTMLElement | null = null;
   private buildPanel: HTMLElement | null = null;
+  private beastPanel: HTMLElement | null = null;
 
   private actionCallbacks: Record<string, () => void> = {
     plant: () => this.showCropPanel(),
     build: () => this.showBuildPanel(),
     beast: () => this.showBeastPanel(),
-    menu: () => this.showNotification('菜单系统开发中...', 'info')
+    menu: () => this.showMainMenu()
   };
 
   private cropSelectCallback: ((cropId: string) => void) | null = null;
   private buildingSelectCallback: ((buildingId: string) => void) | null = null;
   private toolSelectCallback: ((toolId: string) => void) | null = null;
   private beastSelectCallback: ((beastId: string) => void) | null = null;
+  private menuCallback: Record<string, () => void> = {};
 
   public setCropSelectCallback(callback: (cropId: string) => void): void {
     this.cropSelectCallback = callback;
@@ -67,6 +69,10 @@ export class UIManager extends EventEmitter {
 
   public setBeastSelectCallback(callback: (beastId: string) => void): void {
     this.beastSelectCallback = callback;
+  }
+
+  public setMenuCallback(action: string, callback: () => void): void {
+    this.menuCallback[action] = callback;
   }
 
   public setActionCallback(actionId: string, callback: () => void): void {
@@ -789,7 +795,7 @@ export class UIManager extends EventEmitter {
             <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);">
               <div style="font-size:11px;opacity:0.6;margin-bottom:6px;">能力</div>
               <div style="display:flex;flex-wrap:wrap;gap:4px;">
-                ${beast.abilities.map(ability => `
+                ${beast.abilities.map((ability: { name: string; unlockIntimacy: number }) => `
                   <span style="
                     font-size:10px;
                     padding:3px 8px;
@@ -997,6 +1003,329 @@ export class UIManager extends EventEmitter {
     if (existing) {
       existing.remove();
       this.beastPanel = null;
+    }
+  }
+
+  public showMainMenu(): void {
+    const existing = document.getElementById('main-menu');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'main-menu';
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      background: 'rgba(0,0,0,0.85)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: '2000',
+      backdropFilter: 'blur(10px)'
+    });
+
+    menu.innerHTML = `
+      <div style="
+        background: rgba(30, 35, 50, 0.98);
+        border-radius: 20px;
+        padding: 32px;
+        min-width: 320px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      ">
+        <div style="font-size:28px;margin-bottom:8px;">🌟</div>
+        <div style="font-size:22px;font-weight:bold;color:#fff;margin-bottom:4px;">星野栖所</div>
+        <div style="font-size:13px;opacity:0.6;color:#aaa;margin-bottom:28px;">让心灵在星空下栖息</div>
+        
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <button id="menu-save" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(100,200,100,0.3),rgba(80,180,80,0.2));
+            border:1px solid rgba(100,200,100,0.4);
+            border-radius:12px;
+            color:#90EE90;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">💾 保存游戏</button>
+          
+          <button id="menu-load" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(100,150,255,0.3),rgba(80,130,255,0.2));
+            border:1px solid rgba(100,150,255,0.4);
+            border-radius:12px;
+            color:#87CEEB;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">📂 加载游戏</button>
+          
+          <button id="menu-settings" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(200,150,100,0.3),rgba(180,130,80,0.2));
+            border:1px solid rgba(200,150,100,0.4);
+            border-radius:12px;
+            color:#DEB887;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">⚙️ 游戏设置</button>
+          
+          <button id="menu-help" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(180,100,200,0.3),rgba(160,80,180,0.2));
+            border:1px solid rgba(180,100,200,0.4);
+            border-radius:12px;
+            color:#DDA0DD;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">❓ 游戏帮助</button>
+          
+          <div style="height:1px;background:rgba(255,255,255,0.1);margin:8px 0;"></div>
+          
+          <button id="menu-close" class="menu-btn" style="
+            padding:14px 32px;
+            background:rgba(255,255,255,0.05);
+            border:1px solid rgba(255,255,255,0.1);
+            border-radius:12px;
+            color:#fff;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">继续游戏</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(menu);
+
+    menu.querySelectorAll('.menu-btn').forEach(btn => {
+      btn.addEventListener('mouseover', () => {
+        (btn as HTMLElement).style.transform = 'scale(1.02)';
+      });
+      btn.addEventListener('mouseout', () => {
+        (btn as HTMLElement).style.transform = 'scale(1)';
+      });
+    });
+
+    document.getElementById('menu-save')?.addEventListener('click', () => {
+      if (this.menuCallback['save']) this.menuCallback['save']();
+      menu.remove();
+    });
+
+    document.getElementById('menu-load')?.addEventListener('click', () => {
+      if (this.menuCallback['load']) this.menuCallback['load']();
+      menu.remove();
+    });
+
+    document.getElementById('menu-settings')?.addEventListener('click', () => {
+      menu.remove();
+      this.showSettingsMenu();
+    });
+
+    document.getElementById('menu-help')?.addEventListener('click', () => {
+      menu.remove();
+      this.showHelpMenu();
+    });
+
+    document.getElementById('menu-close')?.addEventListener('click', () => {
+      menu.remove();
+    });
+
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) {
+        menu.remove();
+      }
+    });
+  }
+
+  public showSettingsMenu(): void {
+    const existing = document.getElementById('settings-menu');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'settings-menu';
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      borderRadius: '16px',
+      padding: '24px',
+      minWidth: '360px',
+      color: '#fff',
+      zIndex: '2001',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+    });
+
+    menu.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <span style="font-size:18px;font-weight:bold;">⚙️ 游戏设置</span>
+        <button id="close-settings" style="
+          background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;
+        ">✕</button>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span>🎵 音乐音量</span>
+          <span id="music-value">80%</span>
+        </div>
+        <input type="range" id="music-volume" min="0" max="100" value="80" style="width:100%;">
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span>🔊 音效音量</span>
+          <span id="sfx-value">80%</span>
+        </div>
+        <input type="range" id="sfx-volume" min="0" max="100" value="80" style="width:100%;">
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span>🖥️ 画质</span>
+        </div>
+        <select id="graphics-quality" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;">
+          <option value="LOW">低</option>
+          <option value="MEDIUM" selected>中</option>
+          <option value="HIGH">高</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+        <span>📖 显示教程</span>
+        <label style="position:relative;width:48px;height:24px;">
+          <input type="checkbox" id="show-tutorial" checked style="display:none;">
+          <span style="
+            position:absolute;top:0;left:0;right:0;bottom:0;
+            background:rgba(100,200,100,0.5);border-radius:12px;cursor:pointer;
+            transition:all 0.2s;
+          "></span>
+          <span style="
+            position:absolute;top:2px;left:2px;width:20px;height:20px;
+            background:#fff;border-radius:50%;transition:all 0.2s;
+          "></span>
+        </label>
+      </div>
+    `;
+    document.body.appendChild(menu);
+
+    document.getElementById('close-settings')?.addEventListener('click', () => menu.remove());
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) menu.remove();
+    });
+  }
+
+  public showHelpMenu(): void {
+    const existing = document.getElementById('help-menu');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'help-menu';
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      borderRadius: '16px',
+      padding: '24px',
+      minWidth: '400px',
+      maxWidth: '90vw',
+      color: '#fff',
+      zIndex: '2001',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+      maxHeight: '80vh',
+      overflowY: 'auto'
+    });
+
+    menu.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <span style="font-size:18px;font-weight:bold;">❓ 游戏帮助</span>
+        <button id="close-help" style="
+          background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;
+        ">✕</button>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#90EE90;">🕹️ 基础操作</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>WASD / 方向键 - 移动视角</div>
+          <div>鼠标右键 - 旋转视角</div>
+          <div>鼠标滚轮 - 缩放视角</div>
+          <div>左键点击 - 选择/交互</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#87CEEB;">⌨️ 快捷键</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>B - 进入/退出建造模式</div>
+          <div>I - 打开/关闭背包</div>
+          <div>P - 保存游戏</div>
+          <div>L - 加载游戏</div>
+          <div>ESC - 退出当前界面</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#DDA0DD;">🌱 种植说明</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>1. 点击底部"种植"按钮打开作物面板</div>
+          <div>2. 选择要种植的作物</div>
+          <div>3. 点击地面即可种植</div>
+          <div>4. 点击已种植的作物可查看进度/收获</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#DEB887;">🏗️ 建造说明</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>1. 点击"建造"或按B进入建造模式</div>
+          <div>2. 在左侧面板选择建筑或工具</div>
+          <div>3. 点击地面放置建筑</div>
+          <div>4. 再次按B或ESC退出建造模式</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#FFB6C1;">🐾 异兽说明</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>1. 点击"异兽"按钮查看我的异兽</div>
+          <div>2. 异兽会自动工作帮助玩家</div>
+          <div>3. 通过喂食提升亲密度解锁能力</div>
+          <div>4. 亲密度越高异兽效果越强</div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(menu);
+
+    document.getElementById('close-help')?.addEventListener('click', () => menu.remove());
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) menu.remove();
+    });
+  }
+
+  public hideMainMenu(): void {
+    const existing = document.getElementById('main-menu');
+    if (existing) {
+      existing.remove();
     }
   }
 
