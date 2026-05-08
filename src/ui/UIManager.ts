@@ -37,13 +37,31 @@ export class UIManager {
   private phaseDisplay: HTMLElement | null = null;
   private tooltipElement: HTMLElement | null = null;
   private notificationContainer: HTMLElement | null = null;
+  private cropPanel: HTMLElement | null = null;
+  private buildPanel: HTMLElement | null = null;
 
   private actionCallbacks: Record<string, () => void> = {
-    plant: () => this.showNotification('点击地面即可种植适配当前季节的作物', 'info'),
-    build: () => this.showNotification('按 B 键进入/退出建造模式', 'info'),
+    plant: () => this.showCropPanel(),
+    build: () => this.showBuildPanel(),
     beast: () => this.showNotification('异兽系统开发中...', 'info'),
     menu: () => this.showNotification('菜单系统开发中...', 'info')
   };
+
+  private cropSelectCallback: ((cropId: string) => void) | null = null;
+  private buildingSelectCallback: ((buildingId: string) => void) | null = null;
+  private toolSelectCallback: ((toolId: string) => void) | null = null;
+
+  public setCropSelectCallback(callback: (cropId: string) => void): void {
+    this.cropSelectCallback = callback;
+  }
+
+  public setBuildingSelectCallback(callback: (buildingId: string) => void): void {
+    this.buildingSelectCallback = callback;
+  }
+
+  public setToolSelectCallback(callback: (toolId: string) => void): void {
+    this.toolSelectCallback = callback;
+  }
 
   public setActionCallback(actionId: string, callback: () => void): void {
     this.actionCallbacks[actionId] = callback;
@@ -331,6 +349,349 @@ export class UIManager {
     });
     panel.innerHTML = `<h3 style="margin:0 0 10px">🎒 背包</h3><p>功能开发中...</p><button onclick="this.parentElement.remove()" style="margin-top:10px;padding:5px 10px;cursor:pointer">关闭</button>`;
     document.body.appendChild(panel);
+  }
+
+  public showCropPanel(): void {
+    const existing = document.getElementById('crop-panel');
+    if (existing) {
+      existing.remove();
+      this.cropPanel = null;
+      return;
+    }
+
+    this.cropPanel = document.createElement('div');
+    this.cropPanel.id = 'crop-panel';
+    Object.assign(this.cropPanel.style, {
+      position: 'fixed',
+      bottom: '80px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '16px',
+      fontSize: '13px',
+      zIndex: '999',
+      minWidth: '400px',
+      maxWidth: '90vw',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+    });
+
+    this.cropPanel.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px;">
+        <span style="font-size:18px;">🌱</span>
+        <span style="font-size:16px;font-weight:bold;">选择作物种植</span>
+        <span style="margin-left:auto;font-size:12px;opacity:0.7;">点击选择后再点击地面种植</span>
+      </div>
+      <div id="crop-list" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      <button id="close-crop-panel" style="margin-top:12px;padding:8px 16px;background:rgba(255,255,255,0.1);border:none;border-radius:8px;color:#fff;cursor:pointer;width:100%;">关闭</button>
+    `;
+    document.body.appendChild(this.cropPanel);
+
+    const closeBtn = document.getElementById('close-crop-panel');
+    closeBtn?.addEventListener('click', () => {
+      this.cropPanel?.remove();
+      this.cropPanel = null;
+    });
+
+    this.updateCropList();
+  }
+
+  public updateCropList(): void {
+    const cropList = document.getElementById('crop-list');
+    if (!cropList) return;
+
+    const crops = this.getAvailableCrops();
+    if (crops.length === 0) {
+      cropList.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.7;">当前季节没有可种植的作物</div>';
+      return;
+    }
+
+    cropList.innerHTML = crops.map(crop => `
+      <div class="crop-item" data-crop-id="${crop.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        min-width: 120px;
+        text-align: center;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,200,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+        <div style="font-size:24px;margin-bottom:4px;">${this.getCropEmoji(crop.id)}</div>
+        <div style="font-weight:bold;margin-bottom:4px;">${crop.name}</div>
+        <div style="font-size:11px;opacity:0.7;">
+          生长时间: ${crop.growthTime}分钟
+        </div>
+        <div style="font-size:11px;color:#90EE90;">
+          收获: ${crop.harvestYield.map(y => `${y.itemId} x${y.amount}`).join(', ')}
+        </div>
+      </div>
+    `).join('');
+
+    cropList.querySelectorAll('.crop-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const cropId = item.getAttribute('data-crop-id');
+        if (cropId && this.cropSelectCallback) {
+          this.cropSelectCallback(cropId);
+          this.showNotification(`已选择种植: ${crops.find(c => c.id === cropId)?.name}`, 'success');
+          this.cropPanel?.remove();
+          this.cropPanel = null;
+        }
+      });
+    });
+  }
+
+  private getCropEmoji(cropId: string): string {
+    const emojis: Record<string, string> = {
+      wheat: '🌾',
+      tomato: '🍅',
+      carrot: '🥕',
+      cabbage: '🥬',
+      star_flower: '🌸',
+      moon_fruit: '🌙'
+    };
+    return emojis[cropId] || '🌱';
+  }
+
+  private getAvailableCrops(): any[] {
+    return [
+      { id: 'wheat', name: '小麦', growthTime: 60, harvestYield: [{ itemId: 'wheat_grain', amount: 3 }] },
+      { id: 'tomato', name: '番茄', growthTime: 45, harvestYield: [{ itemId: 'tomato', amount: 4 }] },
+      { id: 'carrot', name: '胡萝卜', growthTime: 40, harvestYield: [{ itemId: 'carrot', amount: 3 }] },
+      { id: 'cabbage', name: '卷心菜', growthTime: 50, harvestYield: [{ itemId: 'cabbage', amount: 2 }] },
+      { id: 'star_flower', name: '星绒花', growthTime: 90, harvestYield: [{ itemId: 'star_petal', amount: 2 }] },
+      { id: 'moon_fruit', name: '月华果', growthTime: 120, harvestYield: [{ itemId: 'moon_crystal', amount: 3 }] }
+    ];
+  }
+
+  public showBuildPanel(): void {
+    const existing = document.getElementById('build-panel');
+    if (existing) {
+      existing.remove();
+      this.buildPanel = null;
+      return;
+    }
+
+    this.buildPanel = document.createElement('div');
+    this.buildPanel.id = 'build-panel';
+    Object.assign(this.buildPanel.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '20px',
+      transform: 'translateY(-50%)',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '16px',
+      fontSize: '13px',
+      zIndex: '999',
+      width: '280px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+    });
+
+    this.buildPanel.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px;">
+        <span style="font-size:18px;">🏗️</span>
+        <span style="font-size:16px;font-weight:bold;">建造模式</span>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">建筑</div>
+        <div id="building-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">地形工具</div>
+        <div id="tool-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;opacity:0.6;text-align:center;">
+        点击选择后再点击地面放置<br>按 B 或 ESC 退出建造模式
+      </div>
+      <button id="exit-build-mode" style="margin-top:12px;padding:10px;background:rgba(255,100,100,0.3);border:none;border-radius:8px;color:#fff;cursor:pointer;width:100%;">退出建造模式</button>
+    `;
+    document.body.appendChild(this.buildPanel);
+
+    const exitBtn = document.getElementById('exit-build-mode');
+    exitBtn?.addEventListener('click', () => {
+      this.emit('exitBuildMode');
+    });
+
+    this.updateBuildingList();
+    this.updateToolList();
+  }
+
+  public updateBuildingList(): void {
+    const buildingList = document.getElementById('building-list');
+    if (!buildingList) return;
+
+    const buildings = this.getBuildingDefs();
+    buildingList.innerHTML = buildings.map(b => `
+      <div class="building-item" data-building-id="${b.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        display:flex;
+        align-items:center;
+        gap:10px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,180,255,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+        <span style="font-size:20px;">${this.getBuildingEmoji(b.type)}</span>
+        <div>
+          <div style="font-weight:bold;font-size:13px;">${b.name}</div>
+          <div style="font-size:10px;opacity:0.7;">${b.description}</div>
+        </div>
+      </div>
+    `).join('');
+
+    buildingList.querySelectorAll('.building-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const buildingId = item.getAttribute('data-building-id');
+        if (buildingId && this.buildingSelectCallback) {
+          this.buildingSelectCallback(buildingId);
+          this.showNotification(`已选择建筑: ${buildings.find(b => b.id === buildingId)?.name}`, 'success');
+        }
+      });
+    });
+  }
+
+  public updateToolList(): void {
+    const toolList = document.getElementById('tool-list');
+    if (!toolList) return;
+
+    const tools = this.getTerrainTools();
+    toolList.innerHTML = tools.map(t => `
+      <div class="tool-item" data-tool-id="${t.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        display:flex;
+        align-items:center;
+        gap:10px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(255,180,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+        <span style="font-size:20px;">${this.getToolEmoji(t.type)}</span>
+        <div>
+          <div style="font-weight:bold;font-size:13px;">${t.name}</div>
+          <div style="font-size:10px;opacity:0.7;">${t.description}</div>
+        </div>
+      </div>
+    `).join('');
+
+    toolList.querySelectorAll('.tool-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const toolId = item.getAttribute('data-tool-id');
+        if (toolId && this.toolSelectCallback) {
+          this.toolSelectCallback(toolId);
+          this.showNotification(`已选择工具: ${tools.find(t => t.id === toolId)?.name}`, 'success');
+        }
+      });
+    });
+  }
+
+  private getBuildingEmoji(type: string): string {
+    const emojis: Record<string, string> = {
+      DECORATION: '🏠',
+      BASIC: '📦',
+      SPECIAL: '✨'
+    };
+    return emojis[type] || '🏗️';
+  }
+
+  private getToolEmoji(type: string): string {
+    const emojis: Record<string, string> = {
+      FILL: '⛰️',
+      DIG: '⛏️',
+      WATER: '💧',
+      PAVE: '🧱'
+    };
+    return emojis[type] || '🔧';
+  }
+
+  private getBuildingDefs(): any[] {
+    return [
+      { id: 'windmill', name: '风车', type: 'DECORATION', description: '一座小型风车，随风转动' },
+      { id: 'garden_bench', name: '花园长椅', type: 'DECORATION', description: '木质长椅，可以休息的地方' },
+      { id: 'stone_lamp', name: '石灯笼', type: 'DECORATION', description: '柔和的石灯，夜晚提供温暖光线' },
+      { id: 'flower_bed', name: '花坛', type: 'DECORATION', description: '种植各种花卉的花坛' },
+      { id: 'storage_cabinet', name: '收纳柜', type: 'BASIC', description: '增加背包容量上限' },
+      { id: 'beast_house', name: '兽兽小屋', type: 'SPECIAL', description: '给兽兽们的小屋' },
+      { id: 'greenhouse', name: '温室', type: 'SPECIAL', description: '加速附近农作物生长' },
+      { id: 'fountain', name: '许愿池', type: 'SPECIAL', description: '美丽的喷泉，偶尔出现星雨' }
+    ];
+  }
+
+  private getTerrainTools(): any[] {
+    return [
+      { id: 'fill_tool', name: '填土', type: 'FILL', description: '填高地形' },
+      { id: 'dig_tool', name: '挖掘', type: 'DIG', description: '挖低地形' },
+      { id: 'water_tool', name: '引水', type: 'WATER', description: '创造小型水池' },
+      { id: 'pave_tool', name: '铺路', type: 'PAVE', description: '铺设石板路' }
+    ];
+  }
+
+  public showCropInfo(crop: any): void {
+    const existing = document.getElementById('crop-info');
+    if (existing) existing.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'crop-info';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '100px',
+      right: '20px',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '12px',
+      fontSize: '13px',
+      zIndex: '998',
+      minWidth: '200px',
+      border: '1px solid rgba(255,255,255,0.1)'
+    });
+
+    const remainingMinutes = Math.ceil((1 - crop.growthProgress) * crop.data.growthTime);
+    const isReady = crop.isHarvestable;
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:20px;">${this.getCropEmoji(crop.data.id)}</span>
+        <span style="font-weight:bold;">${crop.data.name}</span>
+        ${isReady ? '<span style="background:#4CAF50;padding:2px 8px;border-radius:4px;font-size:11px;">可收获!</span>' : ''}
+      </div>
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="opacity:0.7;">生长进度</span>
+          <span>${Math.round(crop.growthProgress * 100)}%</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);height:6px;border-radius:3px;overflow:hidden;">
+          <div style="width:${crop.growthProgress * 100}%;height:100%;background:${isReady ? '#4CAF50' : '#2196F3'};transition:width 0.3s;"></div>
+        </div>
+      </div>
+      ${!isReady ? `<div style="font-size:12px;opacity:0.7;">预计剩余: ${remainingMinutes} 分钟</div>` : ''}
+      <div style="margin-top:8px;font-size:11px;opacity:0.6;">点击作物即可收获</div>
+    `;
+    document.body.appendChild(panel);
+
+    setTimeout(() => {
+      panel.style.opacity = '0';
+      panel.style.transition = 'opacity 0.3s';
+      setTimeout(() => panel.remove(), 300);
+    }, 4000);
+  }
+
+  public hideBuildPanel(): void {
+    const existing = document.getElementById('build-panel');
+    if (existing) {
+      existing.remove();
+      this.buildPanel = null;
+    }
   }
 
   public dispose(): void {

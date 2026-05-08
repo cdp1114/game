@@ -171,7 +171,7 @@ export class GameEngine extends EventEmitter {
 
   private setupActionButtonCallbacks(): void {
     this.uiManager.setActionCallback('plant', () => {
-      this.uiManager.showNotification('点击地面即可种植适配当前季节的作物', 'info');
+      this.uiManager.showCropPanel();
     });
 
     this.uiManager.setActionCallback('build', () => {
@@ -190,7 +190,26 @@ export class GameEngine extends EventEmitter {
       this.saveGame();
       this.uiManager.showNotification('游戏已保存', 'success');
     });
+
+    this.uiManager.setCropSelectCallback((cropId: string) => {
+      this.selectedCropId = cropId;
+      this.uiManager.showNotification(`已选择种植: ${this.cropSystem.getCropConfig(cropId)?.name || cropId}`, 'success');
+    });
+
+    this.uiManager.setBuildingSelectCallback((buildingId: string) => {
+      this.buildSystem.selectBuilding(buildingId);
+    });
+
+    this.uiManager.setToolSelectCallback((toolId: string) => {
+      this.buildSystem.selectTool(toolId);
+    });
+
+    this.uiManager.on('exitBuildMode', () => {
+      this.buildSystem.exitEditMode();
+    });
   }
+
+  private selectedCropId: string | null = null;
 
   private setupCropInteraction(): void {
     this.inputManager.on('click', (data: { position: Vector3 }) => {
