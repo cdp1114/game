@@ -403,7 +403,7 @@ export class BuildSystem extends EventEmitter {
     return instanceId;
   }
 
-  private createBuildingMesh(placed: PlacedBuilding, def: BuildingDefinition): void {
+  private createBuildingMesh(placed: PlacedBuilding, def: BuildingDefinition): THREE.Group {
     let mesh: THREE.Group;
 
     switch (def.id) {
@@ -443,6 +443,8 @@ export class BuildSystem extends EventEmitter {
     mesh.userData.buildingId = placed.id;
     mesh.userData.buildingDefId = def.id;
     this.scene.add(mesh);
+    
+    return mesh;
   }
 
   private createWindmillMesh(_def: BuildingDefinition): THREE.Group {

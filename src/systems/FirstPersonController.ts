@@ -279,7 +279,7 @@ export class FirstPersonController extends EventEmitter {
     this.isFirstPerson = !this.isFirstPerson;
     
     if (this.isFirstPerson) {
-      document.requestPointerLock();
+      (document as any).requestPointerLock?.();
     } else {
       if (document.pointerLockElement) {
         document.exitPointerLock();
