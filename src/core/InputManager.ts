@@ -41,7 +41,6 @@ export class InputManager extends EventEmitter {
   
   private raycaster: THREE.Raycaster;
   private mouse: THREE.Vector2;
-  private selectableObjects: THREE.Object3D[] = [];
   
   private rotationSpeed: number = 0.003;
 
@@ -132,12 +131,13 @@ export class InputManager extends EventEmitter {
     }
 
     if (!this.isClickingOnUI(event.target as HTMLElement)) {
-      this.emit('objectSelect', {
-        mouse: this.mouse.clone(),
-        screenX: event.clientX,
-        screenY: event.clientY
-      });
-    }
+       this.emit('objectSelect', {
+         mouse: this.mouse.clone(),
+         screenX: event.clientX,
+         screenY: event.clientY,
+         raycaster: this.raycaster
+       });
+     }
   }
 
   private onWheel(event: WheelEvent): void {

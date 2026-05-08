@@ -185,7 +185,7 @@ export class GameEngine extends EventEmitter {
     });
 
     this.uiManager.setActionCallback('beast', () => {
-      this.uiManager.showNotification('异兽系统开发中...', 'info');
+      this.uiManager.showBeastPanel();
     });
 
     this.uiManager.setActionCallback('menu', () => {
@@ -248,6 +248,25 @@ export class GameEngine extends EventEmitter {
           if (crop.isHarvestable) {
             this.cropSystem.harvestCrop(crop.id);
             this.uiManager.showNotification(`收获了 ${crop.data.name}！`, 'success');
+          }
+        }
+      } else if (data.raycaster) {
+        const intersections = data.raycaster.intersectObjects(this.scene.children, true);
+        for (const intersection of intersections) {
+          let obj: THREE.Object3D | null = intersection.object;
+          while (obj) {
+            if (obj.userData?.cropId) {
+              const crop = this.cropSystem.getCrop(obj.userData.cropId);
+              if (crop) {
+                this.uiManager.showCropInfo(crop);
+                if (crop.isHarvestable) {
+                  this.cropSystem.harvestCrop(crop.id);
+                  this.uiManager.showNotification(`收获了 ${crop.data.name}！`, 'success');
+                }
+              }
+              return;
+            }
+            obj = obj.parent;
           }
         }
       }
