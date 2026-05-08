@@ -217,6 +217,7 @@ export class GameEngine extends EventEmitter {
 
     this.uiManager.setToolSelectCallback((toolId: string) => {
       this.buildSystem.selectTool(toolId);
+      this.uiManager.showNotification(`已选择工具: ${this.buildSystem.getToolName(toolId) || toolId}`, 'success');
     });
 
     this.uiManager.on('exitBuildMode', () => {
@@ -334,6 +335,7 @@ export class GameEngine extends EventEmitter {
     this.beastManager.update(deltaTime);
     this.inputManager.update(deltaTime);
     this.buildSystem.update(deltaTime);
+    this.buildSystem.animateBuildings(this.timeSystem.getTime() / 1000);
     this.updateCamera(deltaTime);
   }
 
