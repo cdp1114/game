@@ -185,7 +185,7 @@ export class GameEngine extends EventEmitter {
     });
 
     this.uiManager.setActionCallback('beast', () => {
-      this.uiManager.showNotification('异兽系统开发中...', 'info');
+      this.uiManager.showBeastPanel();
     });
 
     this.uiManager.setActionCallback('menu', () => {
@@ -217,6 +217,7 @@ export class GameEngine extends EventEmitter {
 
     this.uiManager.setToolSelectCallback((toolId: string) => {
       this.buildSystem.selectTool(toolId);
+      this.uiManager.showNotification(`已选择工具: ${this.buildSystem.getToolName(toolId) || toolId}`, 'success');
     });
 
     this.uiManager.on('exitBuildMode', () => {
@@ -248,6 +249,25 @@ export class GameEngine extends EventEmitter {
           if (crop.isHarvestable) {
             this.cropSystem.harvestCrop(crop.id);
             this.uiManager.showNotification(`收获了 ${crop.data.name}！`, 'success');
+          }
+        }
+      } else if (data.raycaster) {
+        const intersections = data.raycaster.intersectObjects(this.scene.children, true);
+        for (const intersection of intersections) {
+          let obj: THREE.Object3D | null = intersection.object;
+          while (obj) {
+            if (obj.userData?.cropId) {
+              const crop = this.cropSystem.getCrop(obj.userData.cropId);
+              if (crop) {
+                this.uiManager.showCropInfo(crop);
+                if (crop.isHarvestable) {
+                  this.cropSystem.harvestCrop(crop.id);
+                  this.uiManager.showNotification(`收获了 ${crop.data.name}！`, 'success');
+                }
+              }
+              return;
+            }
+            obj = obj.parent;
           }
         }
       }
@@ -315,6 +335,7 @@ export class GameEngine extends EventEmitter {
     this.beastManager.update(deltaTime);
     this.inputManager.update(deltaTime);
     this.buildSystem.update(deltaTime);
+    this.buildSystem.animateBuildings(this.timeSystem.getTime() / 1000);
     this.updateCamera(deltaTime);
   }
 
@@ -416,6 +437,12 @@ export class GameEngine extends EventEmitter {
   }
 
   public saveGame(): GameSaveData {
+    const inventorySave = this.inventorySystem.save();
+    const resourceItems: Record<string, number> = {};
+    inventorySave.items.forEach((item) => {
+      resourceItems[item.itemId] = item.amount;
+    });
+
     const saveData: GameSaveData = {
       version: '1.0.0',
       timestamp: Date.now(),
@@ -425,9 +452,16 @@ export class GameEngine extends EventEmitter {
       unlockedScenes: ['spring_plains'],
       crops: this.cropSystem.getSaveData(),
       beasts: this.beastManager.getSaveData(),
-      buildings: [],
+      buildings: this.buildSystem.save().placedBuildings.map(b => ({
+        buildingId: b.buildingId,
+        instanceId: b.id,
+        position: b.position,
+        rotation: b.rotation,
+        scale: b.scale,
+        unlocked: true
+      })),
       terrain: { modifications: [] },
-      resources: { items: new Map() },
+      resources: { items: resourceItems },
       storyProgress: { unlockedFragments: [], completedChapters: [], viewedDialogues: [] },
       settings: { musicVolume: 0.8, sfxVolume: 0.8, graphicsQuality: 'MEDIUM', showTutorial: true }
     };
@@ -471,7 +505,23 @@ export class GameEngine extends EventEmitter {
       });
     }
     if (saveData.buildings && saveData.buildings.length > 0) {
-      // Buildings loaded via buildSystem
+      const placedBuildings = saveData.buildings.map(b => ({
+        id: b.instanceId,
+        buildingId: b.buildingId,
+        position: b.position,
+        rotation: b.rotation,
+        scale: b.scale,
+        placedTime: Date.now()
+      }));
+      this.buildSystem.load({ placedBuildings, terrainModifications: [] });
+    }
+    if (saveData.resources?.items) {
+      Object.entries(saveData.resources.items).forEach(([itemId, amount]) => {
+        const shopItem = this.inventorySystem.getShopItem(itemId);
+        if (shopItem) {
+          this.inventorySystem.addItem(itemId, shopItem.name, shopItem.type, amount, 999, shopItem.description, shopItem.tags);
+        }
+      });
     }
   }
 

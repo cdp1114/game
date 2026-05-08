@@ -1483,7 +1483,7 @@ export class BeastManager extends EventEmitter {
 
       if (object.userData.isLeg) {
         const legBob = Math.abs(Math.sin(time * 4 + animPhase)) * 0.03;
-        object.position.y = object.position.y + legBob * 0.1;
+        object.position.y = 0.2 + legBob;
       }
 
       if (object.userData.isEye) {

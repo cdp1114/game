@@ -112,35 +112,32 @@ export class InputManager extends EventEmitter {
   }
 
   private onClick(event: MouseEvent): void {
-    if (this.isClickingOnUI(event.target as HTMLElement)) {
-      return;
-    }
-
-    if (!this.camera) {
-      return;
-    }
-
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-    const intersection = new THREE.Vector3();
-    this.raycaster.setFromCamera(this.mouse, this.camera);
-    const hit = this.raycaster.ray.intersectPlane(plane, intersection);
+    if (!this.isClickingOnUI(event.target as HTMLElement)) {
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const intersection = new THREE.Vector3();
+      this.raycaster.setFromCamera(this.mouse, this.camera);
+      const hit = this.raycaster.ray.intersectPlane(plane, intersection);
 
-    if (hit && intersection) {
-      this.emit('click', {
-        position: { x: intersection.x, y: 0, z: intersection.z },
-        screenX: event.clientX,
-        screenY: event.clientY
-      });
+      if (hit && intersection) {
+        this.emit('click', {
+          position: { x: intersection.x, y: 0, z: intersection.z },
+          screenX: event.clientX,
+          screenY: event.clientY
+        });
+      }
     }
 
-    this.emit('objectSelect', {
-      mouse: this.mouse.clone(),
-      screenX: event.clientX,
-      screenY: event.clientY
-    });
+    if (!this.isClickingOnUI(event.target as HTMLElement)) {
+       this.emit('objectSelect', {
+         mouse: this.mouse.clone(),
+         screenX: event.clientX,
+         screenY: event.clientY,
+         raycaster: this.raycaster
+       });
+     }
   }
 
   private onWheel(event: WheelEvent): void {
@@ -192,7 +189,10 @@ export class InputManager extends EventEmitter {
     
     const uiSelectors = [
       '.action-button', '.action-bar', '.hud-panel', '.notification',
-      '.notification-close', '.controls-hint', 'button', '.fps-panel', '.phase-panel'
+      '.notification-close', '.controls-hint', 'button', '.fps-panel', '.phase-panel',
+      '#build-panel', '#crop-panel', '#beast-panel', '#inventory-panel', '#main-menu',
+      '#settings-menu', '#help-menu', '#crop-info', '#beast-info', '#phase-display',
+      '#time-display', '#weather-display', '#season-display'
     ];
     
     let current: HTMLElement | null = target;
