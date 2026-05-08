@@ -116,6 +116,10 @@ export class InputManager extends EventEmitter {
       return;
     }
 
+    if (!this.camera) {
+      return;
+    }
+
     this.mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -124,7 +128,7 @@ export class InputManager extends EventEmitter {
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hit = this.raycaster.ray.intersectPlane(plane, intersection);
 
-    if (hit) {
+    if (hit && intersection) {
       this.emit('click', {
         position: { x: intersection.x, y: 0, z: intersection.z },
         screenX: event.clientX,
@@ -145,31 +149,39 @@ export class InputManager extends EventEmitter {
   }
 
   private handleZoom(deltaY: number): void {
+    if (!this.camera || !this.camera.position) {
+      return;
+    }
+
     const zoomSpeed = 0.5;
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
-    
-    this.camera.position.addScaledVector(direction, -deltaY * zoomSpeed * 0.01);
+
+    if (direction && direction.isVector3) {
+      this.camera.position.addScaledVector(direction, -deltaY * zoomSpeed * 0.01);
+    }
   }
 
   private applyCameraRotation(deltaX: number, deltaY: number): void {
+    if (!this.camera || !this.camera.position) {
+      return;
+    }
+
     const horizontalRotation = deltaX * this.rotationSpeed;
-    
+
     const cameraPosition = this.camera.position.clone();
-    
+
     const direction = new THREE.Vector3();
     this.camera.getWorldDirection(direction);
-    
+
     const spherical = new THREE.Spherical();
     spherical.setFromVector3(cameraPosition);
-    
+
     spherical.theta -= horizontalRotation;
     spherical.phi -= deltaY * this.rotationSpeed;
-    
-    // 限制垂直旋转角度
+
     spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
-    
-    // 更新相机位置
+
     cameraPosition.setFromSpherical(spherical);
     this.camera.position.copy(cameraPosition);
     this.camera.lookAt(0, 0, 0);
@@ -272,25 +284,39 @@ export class InputManager extends EventEmitter {
   }
 
   private moveCamera(deltaTime: number): void {
-    const moveSpeed = 15 * deltaTime; // 每秒15单位
+    if (!this.camera || !this.camera.position) {
+      return;
+    }
+
+    const moveSpeed = 15 * deltaTime;
     const direction = new THREE.Vector3();
-    
-    // 获取相机的前后左右方向
+
     const forward = new THREE.Vector3();
     this.camera.getWorldDirection(forward);
+    if (!forward || !forward.isVector3) {
+      return;
+    }
     forward.y = 0;
+    if (forward.length() < 0.001) {
+      forward.set(0, 0, -1);
+    }
     forward.normalize();
-    
+
     const right = new THREE.Vector3();
-    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
-    
+    right.crossVectors(forward, new THREE.Vector3(0, 1, 0));
+    if (right.length() < 0.001) {
+      right.set(1, 0, 0);
+    }
+    right.normalize();
+
     if (this.cameraMovement.forward) direction.add(forward);
     if (this.cameraMovement.backward) direction.sub(forward);
     if (this.cameraMovement.left) direction.sub(right);
     if (this.cameraMovement.right) direction.add(right);
-    
-    if (direction.length() > 0) {
-      direction.normalize().multiplyScalar(moveSpeed);
+
+    if (direction.length() > 0.001) {
+      direction.normalize();
+      direction.multiplyScalar(moveSpeed);
       this.camera.position.add(direction);
     }
   }
