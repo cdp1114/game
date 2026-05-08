@@ -83,6 +83,15 @@ export class BuildSystem extends EventEmitter {
         tags: ['decoration', 'garden']
       },
       {
+        id: 'fence',
+        name: '木栅栏',
+        type: BuildingType.DECORATION,
+        description: '可爱的木栅栏，用来圈地',
+        gridSize: { w: 1, h: 1 },
+        cost: [{ itemId: 'wood', amount: 2 }],
+        tags: ['decoration', 'fence']
+      },
+      {
         id: 'storage_cabinet',
         name: '收纳柜',
         type: BuildingType.BASIC,
@@ -390,11 +399,402 @@ export class BuildSystem extends EventEmitter {
   }
 
   private createBuildingMesh(placed: PlacedBuilding, def: BuildingDefinition): void {
-    const geometry = new THREE.BoxGeometry(
-      def.gridSize.w * this.gridSize * 0.8,
-      1.5,
-      def.gridSize.h * this.gridSize * 0.8
-    );
+    let mesh: THREE.Group;
+
+    switch (def.id) {
+      case 'windmill':
+        mesh = this.createWindmillMesh(def);
+        break;
+      case 'garden_bench':
+        mesh = this.createGardenBenchMesh(def);
+        break;
+      case 'stone_lamp':
+        mesh = this.createStoneLampMesh(def);
+        break;
+      case 'flower_bed':
+        mesh = this.createFlowerBedMesh(def);
+        break;
+      case 'fence':
+        mesh = this.createFenceMesh(def);
+        break;
+      case 'storage_cabinet':
+        mesh = this.createStorageCabinetMesh(def);
+        break;
+      case 'beast_house':
+        mesh = this.createBeastHouseMesh(def);
+        break;
+      case 'greenhouse':
+        mesh = this.createGreenhouseMesh(def);
+        break;
+      case 'fountain':
+        mesh = this.createFountainMesh(def);
+        break;
+      default:
+        mesh = this.createGenericBuildingMesh(def);
+    }
+
+    mesh.position.set(placed.position.x, 0, placed.position.z);
+    mesh.userData.isBuilding = true;
+    mesh.userData.buildingId = placed.id;
+    mesh.userData.buildingDefId = def.id;
+    this.scene.add(mesh);
+  }
+
+  private createWindmillMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const baseGeometry = new THREE.CylinderGeometry(0.6, 0.8, 2.5, 8);
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: 0xD4C4A8, roughness: 0.9 });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = 1.25;
+    base.castShadow = true;
+    group.add(base);
+
+    const roofGeometry = new THREE.ConeGeometry(0.7, 0.6, 8);
+    const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 2.8;
+    roof.castShadow = true;
+    group.add(roof);
+
+    const bladeGroup = new THREE.Group();
+    bladeGroup.position.set(0, 2.2, 0.55);
+
+    const bladeMaterial = new THREE.MeshStandardMaterial({ color: 0xF5F5DC, roughness: 0.7 });
+    for (let i = 0; i < 4; i++) {
+      const bladeGeometry = new THREE.BoxGeometry(0.15, 1.2, 0.05);
+      const blade = new THREE.Mesh(bladeGeometry, bladeMaterial);
+      blade.position.y = 0.6;
+      blade.rotation.z = (i * Math.PI) / 2;
+      blade.castShadow = true;
+      bladeGroup.add(blade);
+    }
+
+    const hubGeometry = new THREE.SphereGeometry(0.12, 8, 8);
+    const hubMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.5 });
+    const hub = new THREE.Mesh(hubGeometry, hubMaterial);
+    bladeGroup.add(hub);
+
+    bladeGroup.userData.isWindmillBlade = true;
+    group.add(bladeGroup);
+
+    const doorGeometry = new THREE.BoxGeometry(0.4, 0.8, 0.1);
+    const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x654321, roughness: 0.8 });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(0, 0.5, 0.71);
+    group.add(door);
+
+    return group;
+  }
+
+  private createGardenBenchMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const seatGeometry = new THREE.BoxGeometry(1.6, 0.1, 0.5);
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const seat = new THREE.Mesh(seatGeometry, woodMaterial);
+    seat.position.y = 0.5;
+    seat.castShadow = true;
+    group.add(seat);
+
+    for (let i = -1; i <= 1; i += 2) {
+      const legGeometry = new THREE.BoxGeometry(0.1, 0.5, 0.4);
+      const leg = new THREE.Mesh(legGeometry, woodMaterial);
+      leg.position.set(i * 0.65, 0.25, 0);
+      leg.castShadow = true;
+      group.add(leg);
+    }
+
+    const backGeometry = new THREE.BoxGeometry(1.6, 0.5, 0.08);
+    const back = new THREE.Mesh(backGeometry, woodMaterial);
+    back.position.set(0, 0.85, -0.2);
+    back.rotation.x = 0.1;
+    back.castShadow = true;
+    group.add(back);
+
+    return group;
+  }
+
+  private createStoneLampMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const pillarGeometry = new THREE.CylinderGeometry(0.12, 0.15, 1.2, 6);
+    const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.9 });
+    const pillar = new THREE.Mesh(pillarGeometry, stoneMaterial);
+    pillar.position.y = 0.6;
+    pillar.castShadow = true;
+    group.add(pillar);
+
+    const lampGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+    const lampMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFFFFAA,
+      emissive: 0xFFAA00,
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.8
+    });
+    const lamp = new THREE.Mesh(lampGeometry, lampMaterial);
+    lamp.position.y = 1.35;
+    lamp.userData.isLamp = true;
+    group.add(lamp);
+
+    const roofGeometry = new THREE.ConeGeometry(0.3, 0.3, 6);
+    const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x696969, roughness: 0.8 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 1.6;
+    roof.castShadow = true;
+    group.add(roof);
+
+    return group;
+  }
+
+  private createFlowerBedMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const bedGeometry = new THREE.BoxGeometry(1.6, 0.4, 1.6);
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const bed = new THREE.Mesh(bedGeometry, woodMaterial);
+    bed.position.y = 0.2;
+    bed.castShadow = true;
+    group.add(bed);
+
+    const soilGeometry = new THREE.BoxGeometry(1.4, 0.25, 1.4);
+    const soilMaterial = new THREE.MeshStandardMaterial({ color: 0x3D2B1F, roughness: 1 });
+    const soil = new THREE.Mesh(soilGeometry, soilMaterial);
+    soil.position.y = 0.4;
+    group.add(soil);
+
+    const colors = [0xFF6B6B, 0xFFE66D, 0x4ECDC4, 0xFF8C42, 0x9B59B6];
+    for (let i = 0; i < 8; i++) {
+      const flowerGroup = new THREE.Group();
+
+      const stemGeometry = new THREE.CylinderGeometry(0.02, 0.03, 0.3, 4);
+      const stemMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+      const stem = new THREE.Mesh(stemGeometry, stemMaterial);
+      stem.position.y = 0.15;
+      flowerGroup.add(stem);
+
+      const petalGeometry = new THREE.SphereGeometry(0.08, 6, 4);
+      const petalMaterial = new THREE.MeshStandardMaterial({
+        color: colors[i % colors.length],
+        roughness: 0.5
+      });
+      const petal = new THREE.Mesh(petalGeometry, petalMaterial);
+      petal.position.y = 0.35;
+      flowerGroup.add(petal);
+
+      flowerGroup.position.set(
+        (Math.random() - 0.5) * 1.2,
+        0.45,
+        (Math.random() - 0.5) * 1.2
+      );
+      flowerGroup.userData.isFlower = true;
+      group.add(flowerGroup);
+    }
+
+    return group;
+  }
+
+  private createFenceMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const postGeometry = new THREE.BoxGeometry(0.08, 0.8, 0.08);
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const post = new THREE.Mesh(postGeometry, woodMaterial);
+    post.position.y = 0.4;
+    post.castShadow = true;
+    group.add(post);
+
+    const capGeometry = new THREE.ConeGeometry(0.06, 0.15, 4);
+    const cap = new THREE.Mesh(capGeometry, woodMaterial);
+    cap.position.y = 0.88;
+    cap.rotation.y = Math.PI / 4;
+    group.add(cap);
+
+    const railGeometry = new THREE.BoxGeometry(0.9, 0.08, 0.05);
+    const rail1 = new THREE.Mesh(railGeometry, woodMaterial);
+    rail1.position.set(0, 0.3, 0);
+    group.add(rail1);
+
+    const rail2 = new THREE.Mesh(railGeometry, woodMaterial);
+    rail2.position.set(0, 0.6, 0);
+    group.add(rail2);
+
+    return group;
+  }
+
+  private createStorageCabinetMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const bodyGeometry = new THREE.BoxGeometry(1.6, 1.2, 0.5);
+    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0xDEB887, roughness: 0.7 });
+    const body = new THREE.Mesh(bodyGeometry, woodMaterial);
+    body.position.y = 0.6;
+    body.castShadow = true;
+    group.add(body);
+
+    const handleMaterial = new THREE.MeshStandardMaterial({ color: 0xB8860B, metalness: 0.8, roughness: 0.3 });
+
+    for (let i = -1; i <= 1; i += 2) {
+      const doorGeometry = new THREE.BoxGeometry(0.48, 1.0, 0.05);
+      const door = new THREE.Mesh(doorGeometry, woodMaterial);
+      door.position.set(i * 0.52, 0.6, 0.26);
+      group.add(door);
+
+      const handleGeometry = new THREE.BoxGeometry(0.04, 0.15, 0.04);
+      const handle = new THREE.Mesh(handleGeometry, handleMaterial);
+      handle.position.set(i * 0.42, 0.6, 0.3);
+      group.add(handle);
+    }
+
+    const topGeometry = new THREE.BoxGeometry(1.7, 0.08, 0.55);
+    const topMaterial = new THREE.MeshStandardMaterial({ color: 0xA0522D, roughness: 0.6 });
+    const top = new THREE.Mesh(topGeometry, topMaterial);
+    top.position.y = 1.24;
+    top.castShadow = true;
+    group.add(top);
+
+    return group;
+  }
+
+  private createBeastHouseMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const baseGeometry = new THREE.BoxGeometry(2.4, 0.3, 2.4);
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513, roughness: 0.8 });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = 0.15;
+    base.castShadow = true;
+    group.add(base);
+
+    const houseGeometry = new THREE.BoxGeometry(2, 1.8, 2);
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xF5DEB3, roughness: 0.9 });
+    const house = new THREE.Mesh(houseGeometry, wallMaterial);
+    house.position.y = 1.2;
+    house.castShadow = true;
+    group.add(house);
+
+    const roofGeometry = new THREE.BoxGeometry(2.3, 0.2, 2.3);
+    const roofMaterial = new THREE.MeshStandardMaterial({ color: 0xCD853F, roughness: 0.7 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 2.15;
+    roof.castShadow = true;
+    group.add(roof);
+
+    const peakGeometry = new THREE.ConeGeometry(0.15, 0.5, 4);
+    const peak = new THREE.Mesh(peakGeometry, roofMaterial);
+    peak.position.y = 2.5;
+    peak.rotation.y = Math.PI / 4;
+    group.add(peak);
+
+    const doorGeometry = new THREE.BoxGeometry(0.5, 0.8, 0.1);
+    const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x654321, roughness: 0.8 });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(0, 0.65, 1.05);
+    group.add(door);
+
+    const windowGeometry = new THREE.BoxGeometry(0.3, 0.3, 0.1);
+    const windowMaterial = new THREE.MeshStandardMaterial({
+      color: 0x87CEEB,
+      transparent: true,
+      opacity: 0.6
+    });
+    for (let i = -1; i <= 1; i += 2) {
+      const window = new THREE.Mesh(windowGeometry, windowMaterial);
+      window.position.set(i * 0.7, 1.5, 1.05);
+      group.add(window);
+    }
+
+    return group;
+  }
+
+  private createGreenhouseMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2.4);
+    const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x696969, roughness: 0.9 });
+    const base = new THREE.Mesh(baseGeometry, baseMaterial);
+    base.position.y = 0.1;
+    base.castShadow = true;
+    group.add(base);
+
+    const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F4F, metalness: 0.5, roughness: 0.5 });
+
+    for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 3) {
+      const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2, 6);
+      const pole = new THREE.Mesh(poleGeometry, frameMaterial);
+      pole.position.set(Math.cos(angle) * 1, 1.2, Math.sin(angle) * 1);
+      pole.castShadow = true;
+      group.add(pole);
+    }
+
+    const glassMaterial = new THREE.MeshStandardMaterial({
+      color: 0x98FB98,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide
+    });
+
+    const roofGeometry = new THREE.BoxGeometry(2.2, 1.8, 2.2);
+    const roof = new THREE.Mesh(roofGeometry, glassMaterial);
+    roof.position.y = 1.2;
+    group.add(roof);
+
+    const topFrameGeometry = new THREE.BoxGeometry(2.4, 0.1, 2.4);
+    const topFrame = new THREE.Mesh(topFrameGeometry, frameMaterial);
+    topFrame.position.y = 2.15;
+    group.add(topFrame);
+
+    for (let i = -1; i <= 1; i += 2) {
+      const sideGeometry = new THREE.BoxGeometry(0.1, 1.5, 2.2);
+      const side = new THREE.Mesh(sideGeometry, frameMaterial);
+      side.position.set(i * 1.1, 1.0, 0);
+      group.add(side);
+    }
+
+    return group;
+  }
+
+  private createFountainMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
+
+    const baseGeometry = new THREE.CylinderGeometry(2, 2.3, 0.4, 16);
+    const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.9 });
+    const base = new THREE.Mesh(baseGeometry, stoneMaterial);
+    base.position.y = 0.2;
+    base.castShadow = true;
+    group.add(base);
+
+    const poolGeometry = new THREE.CylinderGeometry(1.6, 1.6, 0.3, 16);
+    const poolMaterial = new THREE.MeshStandardMaterial({ color: 0x4169E1, transparent: true, opacity: 0.7 });
+    const pool = new THREE.Mesh(poolGeometry, poolMaterial);
+    pool.position.y = 0.35;
+    group.add(pool);
+
+    const pillarGeometry = new THREE.CylinderGeometry(0.2, 0.25, 1.5, 8);
+    const pillar = new THREE.Mesh(pillarGeometry, stoneMaterial);
+    pillar.position.y = 1.0;
+    pillar.castShadow = true;
+    group.add(pillar);
+
+    const topGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+    const topMaterial = new THREE.MeshStandardMaterial({
+      color: 0xFFD700,
+      emissive: 0xFFD700,
+      emissiveIntensity: 0.3,
+      metalness: 0.5,
+      roughness: 0.3
+    });
+    const top = new THREE.Mesh(topGeometry, topMaterial);
+    top.position.y = 1.85;
+    top.userData.isFountainTop = true;
+    group.add(top);
+
+    return group;
+  }
+
+  private createGenericBuildingMesh(def: BuildingDefinition): THREE.Group {
+    const group = new THREE.Group();
 
     let color = 0xcccccc;
     switch (def.type) {
@@ -403,17 +803,33 @@ export class BuildSystem extends EventEmitter {
       case BuildingType.SPECIAL: color = 0xaa88cc; break;
     }
 
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      roughness: 0.7,
-      metalness: 0.3
-    });
-
+    const geometry = new THREE.BoxGeometry(
+      def.gridSize.w * this.gridSize * 0.8,
+      1.5,
+      def.gridSize.h * this.gridSize * 0.8
+    );
+    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.3 });
     const mesh = new THREE.Mesh(geometry, material);
-    mesh.position.set(placed.position.x, 0.75, placed.position.z);
-    mesh.userData.isBuilding = true;
-    mesh.userData.buildingId = placed.id;
-    this.scene.add(mesh);
+    mesh.position.y = 0.75;
+    mesh.castShadow = true;
+    group.add(mesh);
+
+    return group;
+  }
+
+  public animateBuildings(time: number): void {
+    this.scene.traverse((object) => {
+      if (object.userData.isWindmillBlade) {
+        object.rotation.z = time * 0.5;
+      }
+      if (object.userData.isLamp) {
+        const material = object.material as THREE.MeshStandardMaterial;
+        material.emissiveIntensity = 0.4 + Math.sin(time * 2) * 0.2;
+      }
+      if (object.userData.isFountainTop) {
+        object.rotation.y = time * 0.3;
+      }
+    });
   }
 
   public removeBuilding(instanceId: string): boolean {
