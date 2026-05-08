@@ -165,6 +165,31 @@ export class GameEngine extends EventEmitter {
     this.inventorySystem.on('shop:purchase_failed', () => {
       this.uiManager.showNotification('购买失败: 星尘不足');
     });
+
+    this.setupActionButtonCallbacks();
+  }
+
+  private setupActionButtonCallbacks(): void {
+    this.uiManager.setActionCallback('plant', () => {
+      this.uiManager.showNotification('点击地面即可种植适配当前季节的作物', 'info');
+    });
+
+    this.uiManager.setActionCallback('build', () => {
+      if (this.buildSystem.isBuildEditMode()) {
+        this.buildSystem.exitEditMode();
+      } else {
+        this.buildSystem.enterEditMode();
+      }
+    });
+
+    this.uiManager.setActionCallback('beast', () => {
+      this.uiManager.showNotification('异兽系统开发中...', 'info');
+    });
+
+    this.uiManager.setActionCallback('menu', () => {
+      this.saveGame();
+      this.uiManager.showNotification('游戏已保存', 'success');
+    });
   }
 
   private setupCropInteraction(): void {

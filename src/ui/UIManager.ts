@@ -35,9 +35,19 @@ export class UIManager {
   private seasonDisplay: HTMLElement | null = null;
   private fpsDisplay: HTMLElement | null = null;
   private phaseDisplay: HTMLElement | null = null;
-
   private tooltipElement: HTMLElement | null = null;
   private notificationContainer: HTMLElement | null = null;
+
+  private actionCallbacks: Record<string, () => void> = {
+    plant: () => this.showNotification('点击地面即可种植适配当前季节的作物', 'info'),
+    build: () => this.showNotification('按 B 键进入/退出建造模式', 'info'),
+    beast: () => this.showNotification('异兽系统开发中...', 'info'),
+    menu: () => this.showNotification('菜单系统开发中...', 'info')
+  };
+
+  public setActionCallback(actionId: string, callback: () => void): void {
+    this.actionCallbacks[actionId] = callback;
+  }
 
   constructor() {
     this.initializeElements();
@@ -104,7 +114,8 @@ export class UIManager {
       `;
       
       button.addEventListener('click', () => {
-        this.showNotification(`${action.label}功能开发中...`, 'info');
+        const callback = this.actionCallbacks[action.id];
+        if (callback) callback();
       });
       
       actionBar.appendChild(button);
