@@ -1,17 +1,12 @@
 // 《星野栖所》场景管理器 - 场景加载、光照、天气、季节管理
 
 import * as THREE from 'three';
-import { Season, Weather, DayPhase, SceneConfig } from '../core/types';
+import { Season, Weather, DayPhase } from '../core/types';
 
 export class SceneManager {
   private scene: THREE.Scene;
-  private camera: THREE.PerspectiveCamera;
-  
   private ambientLight!: THREE.AmbientLight;
   private directionalLight!: THREE.DirectionalLight;
-  private hemisphereLight!: THREE.HemisphereLight;
-  
-  private currentWeather: Weather = Weather.CLEAR;
   private weatherTime: number = 0;
   
   // 天气粒子系统
@@ -30,9 +25,8 @@ export class SceneManager {
   private loadedChunks: Map<string, THREE.Object3D> = new Map();
   private unlockedScenes: Set<string> = new Set(['spring_plains']);
 
-  constructor(scene: THREE.Scene, camera: THREE.PerspectiveCamera) {
+  constructor(scene: THREE.Scene, _camera: THREE.PerspectiveCamera) {
     this.scene = scene;
-    this.camera = camera;
     this.createBaseEnvironment();
   }
 
@@ -372,7 +366,7 @@ export class SceneManager {
       { x: -8, z: -2, rotation: Math.PI / 2, count: 3 }
     ];
     
-    fencePositions.forEach((fence, fenceIndex) => {
+    for (const fence of fencePositions) {
       for (let i = 0; i < fence.count; i++) {
         // 篱笆柱
         const postGeometry = new THREE.CylinderGeometry(0.05, 0.05, 1.2, 4);
@@ -408,7 +402,7 @@ export class SceneManager {
           this.scene.add(rail);
         }
       }
-    });
+    }
   }
 
   private createMushrooms(): void {
@@ -642,7 +636,7 @@ export class SceneManager {
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 256;
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d')!;
     
     const gradient = ctx.createRadialGradient(128, 128, 0, 128, 128, 128);
     gradient.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
@@ -691,12 +685,9 @@ export class SceneManager {
         cloud.scale.set(layer.size, layer.size * 0.35, 1);
         cloud.userData.speed = layer.speed;
         cloud.userData.direction = Math.random() > 0.5 ? 1 : -1;
-        this.cloudGroup.add(cloud);
+        this.cloudGroup!.add(cloud);
       }
     });
-    
-    this.cloudGroup.visible = true;
-    this.scene.add(this.cloudGroup);
     
     this.showClearWeatherClouds();
   }
@@ -714,21 +705,21 @@ export class SceneManager {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 256;
-    const ctx = canvas.getContext('2d');
+    const ctx2 = canvas.getContext('2d')!;
     
     // 创建柔和的云形状
-    ctx.clearRect(0, 0, 512, 256);
+    ctx2.clearRect(0, 0, 512, 256);
     
     // 主云体 - 使用多个圆形叠加
     const drawCloudPuff = (cx: number, cy: number, r: number, alpha: number) => {
-      const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+      const gradient = ctx2.createRadialGradient(cx, cy, 0, cx, cy, r);
       gradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
       gradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.6})`);
       gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fill();
+      ctx2.fillStyle = gradient;
+      ctx2.beginPath();
+      ctx2.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx2.fill();
     };
     
     // 绘制云朵形状 - 扁平的椭圆形云团
@@ -756,12 +747,11 @@ export class SceneManager {
   }
 
   public update(deltaTime: number): void {
-    // 更新天气系统时间
     this.weatherTime += deltaTime * 0.001;
     this.updateWeatherAnimations(deltaTime);
   }
 
-  private updateSunPosition(gameTime: number, dayPhase: DayPhase): void {
+  public updateSunPosition(gameTime: number, _dayPhase: DayPhase): void {
     if (!this.sunGlow || !this.sunFlareGroup) return;
     
     // 太阳运行轨迹：4:00 升起 -> 12:00 最高点 -> 20:00 落下
@@ -802,7 +792,7 @@ export class SceneManager {
     this.sunFlareGroup.position.set(sunHorizontalX, sunY, sunZ);
   }
 
-  private updateWeatherAnimations(deltaTime: number): void {
+  private updateWeatherAnimations(_deltaTime: number): void {
     const time = this.weatherTime;
     
     // 更新下雨系统
@@ -859,7 +849,7 @@ export class SceneManager {
 
   public updateLighting(timeData: any): void {
     const phase = timeData.dayPhase;
-    const weather = timeData.weather;
+    const weather = timeData.weather as Weather;
     
     let lightIntensity = 1.0;
     let lightColor = new THREE.Color(0xffffff);
@@ -972,7 +962,6 @@ export class SceneManager {
   }
 
   public updateWeather(weather: Weather): void {
-    this.currentWeather = weather;
     this.updateWeatherSystems(weather);
   }
 
@@ -1006,7 +995,7 @@ export class SceneManager {
         if (this.sunGlow) this.sunGlow.visible = false;
         if (this.sunFlareGroup) this.sunFlareGroup.visible = false;
         if (!this.rainSystem) this.createRainSystem();
-        this.rainSystem.visible = true;
+        if (this.rainSystem) this.rainSystem.visible = true;
         this.showAllClouds();
         this.setCloudColor(0x777788, 0.95);
         break;
@@ -1015,8 +1004,8 @@ export class SceneManager {
         if (this.sunGlow) this.sunGlow.visible = false;
         if (this.sunFlareGroup) this.sunFlareGroup.visible = false;
         if (!this.rainSystem) this.createRainSystem();
-        this.rainSystem.visible = true;
         if (this.rainSystem) {
+          this.rainSystem.visible = true;
           const material = this.rainSystem.material as THREE.ShaderMaterial;
           material.uniforms.uOpacity.value = 0.6;
           material.uniforms.uColor.value.set(0x6666aa);
@@ -1027,7 +1016,7 @@ export class SceneManager {
         
       case Weather.STAR_RAIN:
         if (!this.starRainSystem) this.createStarRainSystem();
-        this.starRainSystem.visible = true;
+        if (this.starRainSystem) this.starRainSystem.visible = true;
         this.hideOtherWeatherSystems();
         break;
         
@@ -1035,7 +1024,7 @@ export class SceneManager {
         if (this.sunGlow) this.sunGlow.visible = false;
         if (this.sunFlareGroup) this.sunFlareGroup.visible = false;
         if (!this.snowSystem) this.createSnowSystem();
-        this.snowSystem.visible = true;
+        if (this.snowSystem) this.snowSystem.visible = true;
         this.showAllClouds();
         this.setCloudColor(0xe8e8f0, 0.85);
         break;
@@ -1044,7 +1033,7 @@ export class SceneManager {
         if (this.sunGlow) this.sunGlow.visible = false;
         if (this.sunFlareGroup) this.sunFlareGroup.visible = false;
         if (!this.fogSystem) this.createFogSystem();
-        this.fogSystem.visible = true;
+        if (this.fogSystem) this.fogSystem.visible = true;
         if (this.cloudGroup) this.cloudGroup.visible = false;
         break;
         

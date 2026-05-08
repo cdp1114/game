@@ -747,9 +747,9 @@ export class BeastManager extends EventEmitter {
   private createCloudBirdTree(): AINode {
     return new SelectorNode([
       new SequenceNode([
-        new ConditionNode(ctx => true),
-        new ActionNode(ctx => {
-          ctx.currentTask = 'sky_exploring';
+        new ConditionNode((_c) => true),
+        new ActionNode((c) => {
+          c.currentTask = 'sky_exploring';
           return NodeStatus.SUCCESS;
         })
       ]),
@@ -815,7 +815,7 @@ export class BeastManager extends EventEmitter {
     });
   }
 
-  public update(deltaTime: number): void {
+  public update(_deltaTime: number): void {
     const time = Date.now() * 0.001;
 
     // 更新环境信息
@@ -825,7 +825,7 @@ export class BeastManager extends EventEmitter {
       dayPhase: this.timeSystem.getCurrentDayPhase()
     };
 
-    this.beasts.forEach((beast, instanceId) => {
+    this.beasts.forEach((beast) => {
       // 更新环境
       beast.context.environment = environment;
 
@@ -855,7 +855,8 @@ export class BeastManager extends EventEmitter {
         object.scale.setScalar(easedScale);
         
         const rawOpacity = 0.5 + Math.sin(time * 1.2 + phase) * 0.3;
-        (object as THREE.Mesh).material.opacity = EasingFunctions.easeOutCubic(Math.max(0, Math.min(1, rawOpacity)));
+        const mat = (object as THREE.Mesh).material as THREE.Material;
+        mat.opacity = EasingFunctions.easeOutCubic(Math.max(0, Math.min(1, rawOpacity)));
       }
 
       // 雾效 - 平滑浮动
@@ -865,8 +866,9 @@ export class BeastManager extends EventEmitter {
         object.position.y = InterpolationUtils.lerp(object.position.y, targetY, 0.1);
         
         const targetOpacity = 0.2 + Math.sin(time * 0.5 + phase) * 0.1;
-        (object as THREE.Mesh).material.opacity = InterpolationUtils.lerp(
-          (object as THREE.Mesh).material.opacity, 
+        const mat = (object as THREE.Mesh).material as THREE.Material;
+        mat.opacity = InterpolationUtils.lerp(
+          mat.opacity, 
           targetOpacity, 
           0.05
         );
@@ -884,7 +886,8 @@ export class BeastManager extends EventEmitter {
       if (object.userData.isStarTrail) {
         const phase = object.userData.phase;
         const rawOpacity = 0.5 + Math.sin(time * 2 + phase) * 0.4;
-        (object as THREE.Mesh).material.opacity = EasingFunctions.easeOutCubic(Math.max(0, Math.min(1, rawOpacity)));
+        const mat = (object as THREE.Mesh).material as THREE.Material;
+        mat.opacity = EasingFunctions.easeOutCubic(Math.max(0, Math.min(1, rawOpacity)));
       }
     });
 

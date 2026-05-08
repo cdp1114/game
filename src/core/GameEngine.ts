@@ -9,6 +9,9 @@ import { UIManager } from '../ui/UIManager';
 import { InputManager } from './InputManager';
 import { EventEmitter } from './EventEmitter';
 import { GameSaveData } from './types';
+import { BuildSystem } from '../systems/BuildSystem';
+import { InventorySystem } from '../systems/InventorySystem';
+import { Vector3 } from './types';
 
 export class GameEngine extends EventEmitter {
   private renderer!: THREE.WebGLRenderer;
@@ -21,6 +24,8 @@ export class GameEngine extends EventEmitter {
   private beastManager!: BeastManager;
   private uiManager!: UIManager;
   private inputManager!: InputManager;
+  private buildSystem!: BuildSystem;
+  private inventorySystem!: InventorySystem;
   
   private clock: THREE.Clock;
   private isRunning: boolean = false;
@@ -121,38 +126,81 @@ export class GameEngine extends EventEmitter {
   }
 
   private setupSystems(): void {
-    // 时间系统
     this.timeSystem = new TimeSystem();
-    
-    // 场景管理器
     this.sceneManager = new SceneManager(this.scene, this.camera);
-    
-    // 作物系统
     this.cropSystem = new CropSystem(this.scene, this.timeSystem);
-    
-    // 异兽管理器
     this.beastManager = new BeastManager(this.scene, this.timeSystem);
-    
-    // 输入管理器
     this.inputManager = new InputManager(this.camera, this.renderer.domElement);
-    
-    // UI管理器
     this.uiManager = new UIManager();
+    this.inventorySystem = new InventorySystem();
+    this.buildSystem = new BuildSystem(this.scene, this.camera);
+    this.setupCropInteraction();
   }
 
   private setupEventListeners(): void {
-    // 窗口大小变化
     window.addEventListener('resize', () => this.onWindowResize());
+    window.addEventListener('keydown', (e) => this.onKeyDown(e));
     
-    // 时间系统事件
     this.timeSystem.on('timeUpdate', (data) => this.onTimeUpdate(data));
     this.timeSystem.on('weatherChange', (data) => this.onWeatherChange(data));
     this.timeSystem.on('seasonChange', (data) => this.onSeasonChange(data));
     this.timeSystem.on('dayPhaseChange', (data) => this.onDayPhaseChange(data));
     
-    // 输入事件
     this.inputManager.on('cameraMove', (data) => this.onCameraMove(data));
     this.inputManager.on('objectSelect', (data) => this.onObjectSelect(data));
+    
+    this.buildSystem.on('build:building_placed', (data: any) => {
+      console.log(`🏗️ 建筑已放置: ${data.building.buildingId}`);
+    });
+    this.buildSystem.on('build:edit_mode_entered', () => {
+      this.uiManager.showNotification('进入建造模式');
+    });
+    this.buildSystem.on('build:edit_mode_exited', () => {
+      this.uiManager.showNotification('退出建造模式');
+    });
+    
+    this.inventorySystem.on('shop:item_purchased', (data: any) => {
+      this.uiManager.showNotification(`购买成功: ${data.itemId} x${data.amount}`);
+    });
+    this.inventorySystem.on('shop:purchase_failed', () => {
+      this.uiManager.showNotification('购买失败: 星尘不足');
+    });
+  }
+
+  private setupCropInteraction(): void {
+    this.inputManager.on('click', (data: { position: Vector3 }) => {
+      if (this.buildSystem.isBuildEditMode()) {
+        if (this.buildSystem.getSelectedBuilding()) {
+          this.buildSystem.placeBuilding(data.position);
+        } else if (this.buildSystem.getSelectedTool()) {
+          this.buildSystem.useTerrainTool(data.position);
+        }
+      } else {
+        this.cropSystem.tryPlantSeedAt(data.position);
+      }
+    });
+  }
+
+  private onKeyDown(event: KeyboardEvent): void {
+    switch (event.key) {
+      case 'b':
+      case 'B':
+        if (this.buildSystem.isBuildEditMode()) {
+          this.buildSystem.exitEditMode();
+        } else {
+          this.buildSystem.enterEditMode();
+        }
+        break;
+      case 'Escape':
+        if (this.buildSystem.isBuildEditMode()) {
+          this.buildSystem.exitEditMode();
+        }
+        break;
+      case 'i':
+      case 'I':
+        this.uiManager.toggleInventory();
+        break;
+    }
   }
 
   public start(): void {
@@ -188,26 +236,16 @@ export class GameEngine extends EventEmitter {
   };
 
   private update(deltaTime: number): void {
-    // 更新时间系统
     this.timeSystem.update(deltaTime);
-    
-    // 更新场景
     this.sceneManager.update(deltaTime);
-    
-    // 更新作物
     this.cropSystem.update(deltaTime);
-    
-    // 更新异兽
     this.beastManager.update(deltaTime);
-    
-    // 更新输入
     this.inputManager.update(deltaTime);
-    
-    // 更新相机
+    this.buildSystem.update(deltaTime);
     this.updateCamera(deltaTime);
   }
 
-  private updateCamera(deltaTime: number): void {
+  private updateCamera(_deltaTime: number): void {
     const cameraRotation = this.inputManager.getCameraRotation();
     
     // 相机旋转由InputManager处理
@@ -223,7 +261,7 @@ export class GameEngine extends EventEmitter {
     this.renderer.render(this.scene, this.camera);
   }
 
-  private updateFPS(deltaTime: number): void {
+  private updateFPS(_deltaTime: number): void {
     const now = performance.now();
     if (now - this.lastFpsUpdate >= 1000) {
       this.currentFps = Math.round((this.frameCount * 1000) / (now - this.lastFpsUpdate));
@@ -262,7 +300,7 @@ export class GameEngine extends EventEmitter {
     this.uiManager.updateDayPhaseDisplay(phase);
   }
 
-  private onCameraMove(data: any): void {
+  private onCameraMove(_data: any): void {
     // 可以在这里添加相机移动的音效或特效
   }
 
@@ -348,21 +386,19 @@ export class GameEngine extends EventEmitter {
   }
 
   private applySaveData(saveData: GameSaveData): void {
-    // 恢复作物数据
     if (saveData.crops) {
       this.cropSystem.loadSaveData(saveData.crops);
     }
-    
-    // 恢复异兽数据
     if (saveData.beasts) {
       this.beastManager.loadSaveData(saveData.beasts);
     }
-    
-    // 恢复场景解锁状态
     if (saveData.unlockedScenes) {
       saveData.unlockedScenes.forEach(sceneId => {
         this.sceneManager.unlockScene(sceneId);
       });
+    }
+    if (saveData.buildings && saveData.buildings.length > 0) {
+      // Buildings loaded via buildSystem
     }
   }
 
@@ -383,6 +419,14 @@ export class GameEngine extends EventEmitter {
     return this.beastManager;
   }
 
+  public getBuildSystem(): BuildSystem {
+    return this.buildSystem;
+  }
+
+  public getInventorySystem(): InventorySystem {
+    return this.inventorySystem;
+  }
+
   public getUIManager(): UIManager {
     return this.uiManager;
   }
@@ -397,6 +441,14 @@ export class GameEngine extends EventEmitter {
 
   public getRenderer(): THREE.WebGLRenderer {
     return this.renderer;
+  }
+
+  public getRaycaster(): THREE.Raycaster {
+    return this.inputManager.getRaycaster();
+  }
+
+  public getMouse(): THREE.Vector2 {
+    return this.inputManager.getMouse();
   }
 
   // 销毁
