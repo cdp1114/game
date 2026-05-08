@@ -435,10 +435,10 @@ export class GameEngine extends EventEmitter {
   }
 
   public saveGame(): GameSaveData {
-    const resources = this.inventorySystem.getResources();
+    const inventorySave = this.inventorySystem.save();
     const resourceItems: Record<string, number> = {};
-    resources.forEach((amount, itemId) => {
-      resourceItems[itemId] = amount;
+    inventorySave.items.forEach((item) => {
+      resourceItems[item.itemId] = item.amount;
     });
 
     const saveData: GameSaveData = {
@@ -450,7 +450,14 @@ export class GameEngine extends EventEmitter {
       unlockedScenes: ['spring_plains'],
       crops: this.cropSystem.getSaveData(),
       beasts: this.beastManager.getSaveData(),
-      buildings: this.buildSystem.save().placedBuildings,
+      buildings: this.buildSystem.save().placedBuildings.map(b => ({
+        buildingId: b.buildingId,
+        instanceId: b.id,
+        position: b.position,
+        rotation: b.rotation,
+        scale: b.scale,
+        unlocked: true
+      })),
       terrain: { modifications: [] },
       resources: { items: resourceItems },
       storyProgress: { unlockedFragments: [], completedChapters: [], viewedDialogues: [] },
@@ -496,11 +503,22 @@ export class GameEngine extends EventEmitter {
       });
     }
     if (saveData.buildings && saveData.buildings.length > 0) {
-      this.buildSystem.load({ placedBuildings: saveData.buildings, terrainModifications: [] });
+      const placedBuildings = saveData.buildings.map(b => ({
+        id: b.instanceId,
+        buildingId: b.buildingId,
+        position: b.position,
+        rotation: b.rotation,
+        scale: b.scale,
+        placedTime: Date.now()
+      }));
+      this.buildSystem.load({ placedBuildings, terrainModifications: [] });
     }
     if (saveData.resources?.items) {
       Object.entries(saveData.resources.items).forEach(([itemId, amount]) => {
-        this.inventorySystem.addItem(itemId, amount);
+        const shopItem = this.inventorySystem.getShopItem(itemId);
+        if (shopItem) {
+          this.inventorySystem.addItem(itemId, shopItem.name, shopItem.type, amount, 999, shopItem.description, shopItem.tags);
+        }
       });
     }
   }

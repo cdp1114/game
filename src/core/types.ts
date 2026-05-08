@@ -242,7 +242,7 @@ export interface TerrainModification {
 }
 
 export interface ResourceInventory {
-  items: Map<string, number>;
+  items: Record<string, number>;
 }
 
 export interface StoryProgressData {
