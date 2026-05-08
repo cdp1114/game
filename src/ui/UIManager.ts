@@ -1,6 +1,7 @@
 // 《星野栖所》UI管理器 - HUD显示和信息面板
 
 import { Season, Weather, DayPhase } from '../core/types';
+import { EventEmitter } from '../core/EventEmitter';
 
 // SVG图标定义
 const SVG_ICONS = {
@@ -29,7 +30,7 @@ const SVG_ICONS = {
   }
 };
 
-export class UIManager {
+export class UIManager extends EventEmitter {
   private timeDisplay: HTMLElement | null = null;
   private weatherDisplay: HTMLElement | null = null;
   private seasonDisplay: HTMLElement | null = null;
@@ -37,19 +38,49 @@ export class UIManager {
   private phaseDisplay: HTMLElement | null = null;
   private tooltipElement: HTMLElement | null = null;
   private notificationContainer: HTMLElement | null = null;
+  private cropPanel: HTMLElement | null = null;
+  private buildPanel: HTMLElement | null = null;
+  private beastPanel: HTMLElement | null = null;
 
   private actionCallbacks: Record<string, () => void> = {
-    plant: () => this.showNotification('点击地面即可种植适配当前季节的作物', 'info'),
-    build: () => this.showNotification('按 B 键进入/退出建造模式', 'info'),
-    beast: () => this.showNotification('异兽系统开发中...', 'info'),
-    menu: () => this.showNotification('菜单系统开发中...', 'info')
+    plant: () => this.showCropPanel(),
+    build: () => this.showBuildPanel(),
+    beast: () => this.showBeastPanel(),
+    menu: () => this.showMainMenu()
   };
+
+  private cropSelectCallback: ((cropId: string) => void) | null = null;
+  private buildingSelectCallback: ((buildingId: string) => void) | null = null;
+  private toolSelectCallback: ((toolId: string) => void) | null = null;
+  private beastSelectCallback: ((beastId: string) => void) | null = null;
+  private menuCallback: Record<string, () => void> = {};
+
+  public setCropSelectCallback(callback: (cropId: string) => void): void {
+    this.cropSelectCallback = callback;
+  }
+
+  public setBuildingSelectCallback(callback: (buildingId: string) => void): void {
+    this.buildingSelectCallback = callback;
+  }
+
+  public setToolSelectCallback(callback: (toolId: string) => void): void {
+    this.toolSelectCallback = callback;
+  }
+
+  public setBeastSelectCallback(callback: (beastId: string) => void): void {
+    this.beastSelectCallback = callback;
+  }
+
+  public setMenuCallback(action: string, callback: () => void): void {
+    this.menuCallback[action] = callback;
+  }
 
   public setActionCallback(actionId: string, callback: () => void): void {
     this.actionCallbacks[actionId] = callback;
   }
 
   constructor() {
+    super();
     this.initializeElements();
     this.createNotificationSystem();
   }
@@ -333,13 +364,979 @@ export class UIManager {
     document.body.appendChild(panel);
   }
 
+  public showCropPanel(): void {
+    const existing = document.getElementById('crop-panel');
+    if (existing) {
+      existing.remove();
+      this.cropPanel = null;
+      return;
+    }
+
+    this.cropPanel = document.createElement('div');
+    this.cropPanel.id = 'crop-panel';
+    Object.assign(this.cropPanel.style, {
+      position: 'fixed',
+      bottom: '80px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '16px',
+      fontSize: '13px',
+      zIndex: '999',
+      minWidth: '400px',
+      maxWidth: '90vw',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+    });
+
+    this.cropPanel.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px;">
+        <span style="font-size:18px;">🌱</span>
+        <span style="font-size:16px;font-weight:bold;">选择作物种植</span>
+        <span style="margin-left:auto;font-size:12px;opacity:0.7;">点击选择后再点击地面种植</span>
+      </div>
+      <div id="crop-list" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      <button id="close-crop-panel" style="margin-top:12px;padding:8px 16px;background:rgba(255,255,255,0.1);border:none;border-radius:8px;color:#fff;cursor:pointer;width:100%;">关闭</button>
+    `;
+    document.body.appendChild(this.cropPanel);
+
+    const closeBtn = document.getElementById('close-crop-panel');
+    closeBtn?.addEventListener('click', () => {
+      this.cropPanel?.remove();
+      this.cropPanel = null;
+    });
+
+    this.updateCropList();
+  }
+
+  public updateCropList(): void {
+    const cropList = document.getElementById('crop-list');
+    if (!cropList) return;
+
+    const crops = this.getAvailableCrops();
+    if (crops.length === 0) {
+      cropList.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.7;">当前季节没有可种植的作物</div>';
+      return;
+    }
+
+    cropList.innerHTML = crops.map(crop => `
+      <div class="crop-item" data-crop-id="${crop.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 12px;
+        border-radius: 10px;
+        cursor: pointer;
+        min-width: 120px;
+        text-align: center;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,200,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+        <div style="font-size:24px;margin-bottom:4px;">${this.getCropEmoji(crop.id)}</div>
+        <div style="font-weight:bold;margin-bottom:4px;">${crop.name}</div>
+        <div style="font-size:11px;opacity:0.7;">
+          生长时间: ${crop.growthTime}分钟
+        </div>
+        <div style="font-size:11px;color:#90EE90;">
+          收获: ${crop.harvestYield.map((y: { itemId: string; amount: number }) => `${y.itemId} x${y.amount}`).join(', ')}
+        </div>
+      </div>
+    `).join('');
+
+    cropList.querySelectorAll('.crop-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const cropId = item.getAttribute('data-crop-id');
+        if (cropId && this.cropSelectCallback) {
+          this.cropSelectCallback(cropId);
+          this.showNotification(`已选择种植: ${crops.find(c => c.id === cropId)?.name}`, 'success');
+          this.cropPanel?.remove();
+          this.cropPanel = null;
+        }
+      });
+    });
+  }
+
+  private getCropEmoji(cropId: string): string {
+    const emojis: Record<string, string> = {
+      wheat: '🌾',
+      tomato: '🍅',
+      carrot: '🥕',
+      cabbage: '🥬',
+      star_flower: '🌸',
+      moon_fruit: '🌙'
+    };
+    return emojis[cropId] || '🌱';
+  }
+
+  private getAvailableCrops(): any[] {
+    return [
+      { id: 'wheat', name: '小麦', growthTime: 60, harvestYield: [{ itemId: 'wheat_grain', amount: 3 }] },
+      { id: 'tomato', name: '番茄', growthTime: 45, harvestYield: [{ itemId: 'tomato', amount: 4 }] },
+      { id: 'carrot', name: '胡萝卜', growthTime: 40, harvestYield: [{ itemId: 'carrot', amount: 3 }] },
+      { id: 'cabbage', name: '卷心菜', growthTime: 50, harvestYield: [{ itemId: 'cabbage', amount: 2 }] },
+      { id: 'star_flower', name: '星绒花', growthTime: 90, harvestYield: [{ itemId: 'star_petal', amount: 2 }] },
+      { id: 'moon_fruit', name: '月华果', growthTime: 120, harvestYield: [{ itemId: 'moon_crystal', amount: 3 }] }
+    ];
+  }
+
+  public showBuildPanel(): void {
+    const existing = document.getElementById('build-panel');
+    if (existing) {
+      existing.remove();
+      this.buildPanel = null;
+      return;
+    }
+
+    this.buildPanel = document.createElement('div');
+    this.buildPanel.id = 'build-panel';
+    Object.assign(this.buildPanel.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '20px',
+      transform: 'translateY(-50%)',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '16px',
+      fontSize: '13px',
+      zIndex: '999',
+      width: '280px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+    });
+
+    this.buildPanel.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:12px;gap:8px;">
+        <span style="font-size:18px;">🏗️</span>
+        <span style="font-size:16px;font-weight:bold;">建造模式</span>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">建筑</div>
+        <div id="building-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:12px;">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">地形工具</div>
+        <div id="tool-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <div style="margin-top:12px;font-size:11px;opacity:0.6;text-align:center;">
+        点击选择后再点击地面放置<br>按 B 或 ESC 退出建造模式
+      </div>
+      <button id="exit-build-mode" style="margin-top:12px;padding:10px;background:rgba(255,100,100,0.3);border:none;border-radius:8px;color:#fff;cursor:pointer;width:100%;">退出建造模式</button>
+    `;
+    document.body.appendChild(this.buildPanel);
+
+    const exitBtn = document.getElementById('exit-build-mode');
+    exitBtn?.addEventListener('click', () => {
+      this.emit('exitBuildMode');
+    });
+
+    this.updateBuildingList();
+    this.updateToolList();
+  }
+
+  public updateBuildingList(): void {
+    const buildingList = document.getElementById('building-list');
+    if (!buildingList) return;
+
+    const buildings = this.getBuildingDefs();
+    buildingList.innerHTML = buildings.map(b => `
+      <div class="building-item" data-building-id="${b.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        display:flex;
+        align-items:center;
+        gap:10px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,180,255,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+        <span style="font-size:20px;">${this.getBuildingEmoji(b.type)}</span>
+        <div>
+          <div style="font-weight:bold;font-size:13px;">${b.name}</div>
+          <div style="font-size:10px;opacity:0.7;">${b.description}</div>
+        </div>
+      </div>
+    `).join('');
+
+    buildingList.querySelectorAll('.building-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const buildingId = item.getAttribute('data-building-id');
+        if (buildingId && this.buildingSelectCallback) {
+          this.buildingSelectCallback(buildingId);
+          this.showNotification(`已选择建筑: ${buildings.find(b => b.id === buildingId)?.name}`, 'success');
+        }
+      });
+    });
+  }
+
+  public updateToolList(): void {
+    const toolList = document.getElementById('tool-list');
+    if (!toolList) return;
+
+    const tools = this.getTerrainTools();
+    toolList.innerHTML = tools.map(t => `
+      <div class="tool-item" data-tool-id="${t.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 10px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        display:flex;
+        align-items:center;
+        gap:10px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(255,180,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+        <span style="font-size:20px;">${this.getToolEmoji(t.type)}</span>
+        <div>
+          <div style="font-weight:bold;font-size:13px;">${t.name}</div>
+          <div style="font-size:10px;opacity:0.7;">${t.description}</div>
+        </div>
+      </div>
+    `).join('');
+
+    toolList.querySelectorAll('.tool-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const toolId = item.getAttribute('data-tool-id');
+        if (toolId && this.toolSelectCallback) {
+          this.toolSelectCallback(toolId);
+          this.showNotification(`已选择工具: ${tools.find(t => t.id === toolId)?.name}`, 'success');
+        }
+      });
+    });
+  }
+
+  private getBuildingEmoji(type: string): string {
+    const emojis: Record<string, string> = {
+      DECORATION: '🏠',
+      BASIC: '📦',
+      SPECIAL: '✨'
+    };
+    return emojis[type] || '🏗️';
+  }
+
+  private getToolEmoji(type: string): string {
+    const emojis: Record<string, string> = {
+      FILL: '⛰️',
+      DIG: '⛏️',
+      WATER: '💧',
+      PAVE: '🧱'
+    };
+    return emojis[type] || '🔧';
+  }
+
+  private getBuildingDefs(): any[] {
+    return [
+      { id: 'windmill', name: '风车', type: 'DECORATION', description: '一座小型风车，随风转动' },
+      { id: 'garden_bench', name: '花园长椅', type: 'DECORATION', description: '木质长椅，可以休息的地方' },
+      { id: 'stone_lamp', name: '石灯笼', type: 'DECORATION', description: '柔和的石灯，夜晚提供温暖光线' },
+      { id: 'flower_bed', name: '花坛', type: 'DECORATION', description: '种植各种花卉的花坛' },
+      { id: 'storage_cabinet', name: '收纳柜', type: 'BASIC', description: '增加背包容量上限' },
+      { id: 'beast_house', name: '兽兽小屋', type: 'SPECIAL', description: '给兽兽们的小屋' },
+      { id: 'greenhouse', name: '温室', type: 'SPECIAL', description: '加速附近农作物生长' },
+      { id: 'fountain', name: '许愿池', type: 'SPECIAL', description: '美丽的喷泉，偶尔出现星雨' }
+    ];
+  }
+
+  private getTerrainTools(): any[] {
+    return [
+      { id: 'fill_tool', name: '填土', type: 'FILL', description: '填高地形' },
+      { id: 'dig_tool', name: '挖掘', type: 'DIG', description: '挖低地形' },
+      { id: 'water_tool', name: '引水', type: 'WATER', description: '创造小型水池' },
+      { id: 'pave_tool', name: '铺路', type: 'PAVE', description: '铺设石板路' }
+    ];
+  }
+
+  public showCropInfo(crop: any): void {
+    const existing = document.getElementById('crop-info');
+    if (existing) existing.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'crop-info';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '100px',
+      right: '20px',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '12px',
+      fontSize: '13px',
+      zIndex: '998',
+      minWidth: '200px',
+      border: '1px solid rgba(255,255,255,0.1)'
+    });
+
+    const remainingMinutes = Math.ceil((1 - crop.growthProgress) * crop.data.growthTime);
+    const isReady = crop.isHarvestable;
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:20px;">${this.getCropEmoji(crop.data.id)}</span>
+        <span style="font-weight:bold;">${crop.data.name}</span>
+        ${isReady ? '<span style="background:#4CAF50;padding:2px 8px;border-radius:4px;font-size:11px;">可收获!</span>' : ''}
+      </div>
+      <div style="margin-bottom:8px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="opacity:0.7;">生长进度</span>
+          <span>${Math.round(crop.growthProgress * 100)}%</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);height:6px;border-radius:3px;overflow:hidden;">
+          <div style="width:${crop.growthProgress * 100}%;height:100%;background:${isReady ? '#4CAF50' : '#2196F3'};transition:width 0.3s;"></div>
+        </div>
+      </div>
+      ${!isReady ? `<div style="font-size:12px;opacity:0.7;">预计剩余: ${remainingMinutes} 分钟</div>` : ''}
+      <div style="margin-top:8px;font-size:11px;opacity:0.6;">点击作物即可收获</div>
+    `;
+    document.body.appendChild(panel);
+
+    setTimeout(() => {
+      panel.style.opacity = '0';
+      panel.style.transition = 'opacity 0.3s';
+      setTimeout(() => panel.remove(), 300);
+    }, 4000);
+  }
+
+  public hideBuildPanel(): void {
+    const existing = document.getElementById('build-panel');
+    if (existing) {
+      existing.remove();
+      this.buildPanel = null;
+    }
+  }
+
+  public showBeastPanel(): void {
+    const existing = document.getElementById('beast-panel');
+    if (existing) {
+      existing.remove();
+      this.beastPanel = null;
+      return;
+    }
+
+    this.beastPanel = document.createElement('div');
+    this.beastPanel.id = 'beast-panel';
+    Object.assign(this.beastPanel.style, {
+      position: 'fixed',
+      top: '50%',
+      right: '20px',
+      transform: 'translateY(-50%)',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '16px',
+      fontSize: '13px',
+      zIndex: '999',
+      width: '320px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 8px 32px rgba(0,0,0,0.3)'
+    });
+
+    this.beastPanel.innerHTML = `
+      <div style="display:flex;align-items:center;margin-bottom:16px;gap:8px;">
+        <span style="font-size:20px;">🐾</span>
+        <span style="font-size:18px;font-weight:bold;">我的异兽</span>
+      </div>
+      <div id="beast-list" style="display:flex;flex-direction:column;gap:10px;"></div>
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);">
+        <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">喂食异兽提升亲密度</div>
+        <div id="beast-food-list" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+    `;
+    document.body.appendChild(this.beastPanel);
+
+    this.updateBeastList();
+    this.updateBeastFoodList();
+  }
+
+  public updateBeastList(): void {
+    const beastList = document.getElementById('beast-list');
+    if (!beastList) return;
+
+    const beasts = this.getBeastConfigs();
+    if (beasts.length === 0) {
+      beastList.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.7;">还没有召唤任何异兽</div>';
+      return;
+    }
+
+    beastList.innerHTML = beasts.map(beast => {
+      const intimacyPercent = Math.round((beast.intimacy / beast.maxIntimacy) * 100);
+      const statusText = this.getBeastStatusText(beast.behaviorTree);
+      return `
+        <div class="beast-item" data-beast-id="${beast.id}" style="
+          background: rgba(255,255,255,0.08);
+          padding: 14px;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.2s;
+          border: 1px solid transparent;
+        " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(200,150,255,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:32px;">${this.getBeastEmoji(beast.type)}</span>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                <span style="font-weight:bold;font-size:15px;">${beast.name}</span>
+                <span style="font-size:11px;opacity:0.6;">Lv.${Math.floor(beast.intimacy / 200) + 1}</span>
+              </div>
+              <div style="font-size:11px;opacity:0.7;margin-bottom:6px;">${beast.description}</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:10px;color:#FFB6C1;">❤ ${intimacyPercent}%</span>
+                <span style="font-size:10px;color:#87CEEB;">${statusText}</span>
+              </div>
+              <div style="background:rgba(255,255,255,0.1);height:4px;border-radius:2px;margin-top:6px;overflow:hidden;">
+                <div style="width:${intimacyPercent}%;height:100%;background:linear-gradient(90deg,#FF6B6B,#FFB6C1);transition:width 0.3s;"></div>
+              </div>
+            </div>
+          </div>
+          ${beast.abilities.length > 0 ? `
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.1);">
+              <div style="font-size:11px;opacity:0.6;margin-bottom:6px;">能力</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                ${beast.abilities.map((ability: { name: string; unlockIntimacy: number }) => `
+                  <span style="
+                    font-size:10px;
+                    padding:3px 8px;
+                    background:${ability.unlockIntimacy <= beast.intimacy ? 'rgba(100,200,100,0.3)' : 'rgba(100,100,100,0.3)'};
+                    border-radius:4px;
+                  ">${ability.name}</span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    beastList.querySelectorAll('.beast-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const beastId = item.getAttribute('data-beast-id');
+        if (beastId && this.beastSelectCallback) {
+          this.beastSelectCallback(beastId);
+          this.showNotification(`与 ${beasts.find(b => b.id === beastId)?.name} 互动中...`, 'success');
+        }
+      });
+    });
+  }
+
+  public updateBeastFoodList(): void {
+    const foodList = document.getElementById('beast-food-list');
+    if (!foodList) return;
+
+    const foods = this.getBeastFoods();
+    foodList.innerHTML = foods.map(food => `
+      <div class="food-item" data-food-id="${food.id}" style="
+        background: rgba(255,255,255,0.08);
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size:12px;
+        display:flex;
+        align-items:center;
+        gap:6px;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      " onmouseover="this.style.background='rgba(255,200,150,0.2)';this.style.borderColor='rgba(255,180,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';" onclick="alert('选择要喂食的异兽后，点击这里喂食')">
+        <span>${food.emoji}</span>
+        <span>${food.name}</span>
+      </div>
+    `).join('');
+  }
+
+  private getBeastEmoji(type: string): string {
+    const emojis: Record<string, string> = {
+      STAR_BUNNY: '🐰',
+      CLOUD_BIRD: '🐦',
+      FOG_DEER: '🦌',
+      CRYSTAL_DOLPHIN: '🐬',
+      STAR_FOX: '🦊'
+    };
+    return emojis[type] || '🐾';
+  }
+
+  private getBeastStatusText(behaviorTree: string): string {
+    const statusTexts: Record<string, string> = {
+      star_bunny: '采集中',
+      cloud_bird: '飞行中',
+      fog_deer: '巡视中',
+      crystal_dolphin: '游泳中',
+      star_fox: '休憩中'
+    };
+    return statusTexts[behaviorTree] || '空闲';
+  }
+
+  private getBeastConfigs(): any[] {
+    return [
+      {
+        id: 'star_bunny',
+        name: '星绒兔',
+        type: 'STAR_BUNNY',
+        description: '毛茸茸的小兔子，会自动巡逻农田',
+        intimacy: 250,
+        maxIntimacy: 1000,
+        behaviorTree: 'star_bunny',
+        abilities: [
+          { name: '自动采集', unlockIntimacy: 0 },
+          { name: '自动播种', unlockIntimacy: 500 }
+        ]
+      },
+      {
+        id: 'cloud_bird',
+        name: '云羽雀',
+        type: 'CLOUD_BIRD',
+        description: '高空飞行的鸟类，会拾取浮空星材',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'cloud_bird',
+        abilities: [
+          { name: '高空探索', unlockIntimacy: 0 }
+        ]
+      },
+      {
+        id: 'fog_deer',
+        name: '雾灵鹿',
+        type: 'FOG_DEER',
+        description: '优雅生物，范围内作物产量+20%',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'fog_deer',
+        abilities: [
+          { name: '产量增益', unlockIntimacy: 0 }
+        ]
+      },
+      {
+        id: 'crystal_dolphin',
+        name: '晶溪豚',
+        type: 'CRYSTAL_DOLPHIN',
+        description: '水域生物，净化水域提升品质',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'crystal_dolphin',
+        abilities: [
+          { name: '水域净化', unlockIntimacy: 0 }
+        ]
+      },
+      {
+        id: 'star_fox',
+        name: '星巡狐',
+        type: 'STAR_FOX',
+        description: '夜间激活，探索隐藏宝箱',
+        intimacy: 0,
+        maxIntimacy: 1000,
+        behaviorTree: 'star_fox',
+        abilities: [
+          { name: '夜间探索', unlockIntimacy: 0 }
+        ]
+      }
+    ];
+  }
+
+  private getBeastFoods(): any[] {
+    return [
+      { id: 'bunny_treat', name: '星兔点心', emoji: '🥕' },
+      { id: 'bird_seed_mix', name: '云雀混合粮', emoji: '🌾' },
+      { id: 'deer_moss', name: '雾鹿苔藓', emoji: '🌿' },
+      { id: 'fish_treat', name: '晶溪鱼干', emoji: '🐟' },
+      { id: 'berry_mix', name: '星果拼盘', emoji: '🍇' }
+    ];
+  }
+
+  public showBeastInfo(beast: any): void {
+    const existing = document.getElementById('beast-info');
+    if (existing) existing.remove();
+
+    const panel = document.createElement('div');
+    panel.id = 'beast-info';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '100px',
+      left: '20px',
+      background: 'rgba(20, 25, 35, 0.95)',
+      color: '#fff',
+      padding: '16px',
+      borderRadius: '12px',
+      fontSize: '13px',
+      zIndex: '998',
+      minWidth: '220px',
+      border: '1px solid rgba(255,255,255,0.1)'
+    });
+
+    const intimacyPercent = Math.round((beast.intimacy / beast.maxIntimacy) * 100);
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <span style="font-size:28px;">${this.getBeastEmoji(beast.type)}</span>
+        <div>
+          <div style="font-weight:bold;font-size:15px;">${beast.name}</div>
+          <div style="font-size:11px;opacity:0.6;">等级 ${Math.floor(beast.intimacy / 200) + 1}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+          <span style="opacity:0.7;">亲密度</span>
+          <span style="color:#FFB6C1;">${beast.intimacy}/${beast.maxIntimacy}</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);height:6px;border-radius:3px;overflow:hidden;">
+          <div style="width:${intimacyPercent}%;height:100%;background:linear-gradient(90deg,#FF6B6B,#FFB6C1);transition:width 0.3s;"></div>
+        </div>
+      </div>
+      <div style="font-size:12px;opacity:0.7;margin-bottom:8px;">${beast.description}</div>
+      ${beast.currentTask ? `
+        <div style="font-size:11px;padding:6px 10px;background:rgba(135,206,235,0.2);border-radius:6px;">
+          当前状态: <span style="color:#87CEEB;">${this.getBeastStatusText(beast.behaviorTree || beast.id)}</span>
+        </div>
+      ` : ''}
+    `;
+    document.body.appendChild(panel);
+
+    setTimeout(() => {
+      panel.style.opacity = '0';
+      panel.style.transition = 'opacity 0.3s';
+      setTimeout(() => panel.remove(), 300);
+    }, 4000);
+  }
+
+  public hideBeastPanel(): void {
+    const existing = document.getElementById('beast-panel');
+    if (existing) {
+      existing.remove();
+      this.beastPanel = null;
+    }
+  }
+
+  public showMainMenu(): void {
+    const existing = document.getElementById('main-menu');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'main-menu';
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100%',
+      height: '100%',
+      background: 'rgba(0,0,0,0.85)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: '2000',
+      backdropFilter: 'blur(10px)'
+    });
+
+    menu.innerHTML = `
+      <div style="
+        background: rgba(30, 35, 50, 0.98);
+        border-radius: 20px;
+        padding: 32px;
+        min-width: 320px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      ">
+        <div style="font-size:28px;margin-bottom:8px;">🌟</div>
+        <div style="font-size:22px;font-weight:bold;color:#fff;margin-bottom:4px;">星野栖所</div>
+        <div style="font-size:13px;opacity:0.6;color:#aaa;margin-bottom:28px;">让心灵在星空下栖息</div>
+        
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <button id="menu-save" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(100,200,100,0.3),rgba(80,180,80,0.2));
+            border:1px solid rgba(100,200,100,0.4);
+            border-radius:12px;
+            color:#90EE90;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">💾 保存游戏</button>
+          
+          <button id="menu-load" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(100,150,255,0.3),rgba(80,130,255,0.2));
+            border:1px solid rgba(100,150,255,0.4);
+            border-radius:12px;
+            color:#87CEEB;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">📂 加载游戏</button>
+          
+          <button id="menu-settings" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(200,150,100,0.3),rgba(180,130,80,0.2));
+            border:1px solid rgba(200,150,100,0.4);
+            border-radius:12px;
+            color:#DEB887;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">⚙️ 游戏设置</button>
+          
+          <button id="menu-help" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(180,100,200,0.3),rgba(160,80,180,0.2));
+            border:1px solid rgba(180,100,200,0.4);
+            border-radius:12px;
+            color:#DDA0DD;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">❓ 游戏帮助</button>
+          
+          <div style="height:1px;background:rgba(255,255,255,0.1);margin:8px 0;"></div>
+          
+          <button id="menu-close" class="menu-btn" style="
+            padding:14px 32px;
+            background:rgba(255,255,255,0.05);
+            border:1px solid rgba(255,255,255,0.1);
+            border-radius:12px;
+            color:#fff;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">继续游戏</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(menu);
+
+    menu.querySelectorAll('.menu-btn').forEach(btn => {
+      btn.addEventListener('mouseover', () => {
+        (btn as HTMLElement).style.transform = 'scale(1.02)';
+      });
+      btn.addEventListener('mouseout', () => {
+        (btn as HTMLElement).style.transform = 'scale(1)';
+      });
+    });
+
+    document.getElementById('menu-save')?.addEventListener('click', () => {
+      if (this.menuCallback['save']) this.menuCallback['save']();
+      menu.remove();
+    });
+
+    document.getElementById('menu-load')?.addEventListener('click', () => {
+      if (this.menuCallback['load']) this.menuCallback['load']();
+      menu.remove();
+    });
+
+    document.getElementById('menu-settings')?.addEventListener('click', () => {
+      menu.remove();
+      this.showSettingsMenu();
+    });
+
+    document.getElementById('menu-help')?.addEventListener('click', () => {
+      menu.remove();
+      this.showHelpMenu();
+    });
+
+    document.getElementById('menu-close')?.addEventListener('click', () => {
+      menu.remove();
+    });
+
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) {
+        menu.remove();
+      }
+    });
+  }
+
+  public showSettingsMenu(): void {
+    const existing = document.getElementById('settings-menu');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'settings-menu';
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      borderRadius: '16px',
+      padding: '24px',
+      minWidth: '360px',
+      color: '#fff',
+      zIndex: '2001',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
+    });
+
+    menu.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <span style="font-size:18px;font-weight:bold;">⚙️ 游戏设置</span>
+        <button id="close-settings" style="
+          background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;
+        ">✕</button>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span>🎵 音乐音量</span>
+          <span id="music-value">80%</span>
+        </div>
+        <input type="range" id="music-volume" min="0" max="100" value="80" style="width:100%;">
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span>🔊 音效音量</span>
+          <span id="sfx-value">80%</span>
+        </div>
+        <input type="range" id="sfx-volume" min="0" max="100" value="80" style="width:100%;">
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span>🖥️ 画质</span>
+        </div>
+        <select id="graphics-quality" style="width:100%;padding:8px;border-radius:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;">
+          <option value="LOW">低</option>
+          <option value="MEDIUM" selected>中</option>
+          <option value="HIGH">高</option>
+        </select>
+      </div>
+      
+      <div style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">
+        <span>📖 显示教程</span>
+        <label style="position:relative;width:48px;height:24px;">
+          <input type="checkbox" id="show-tutorial" checked style="display:none;">
+          <span style="
+            position:absolute;top:0;left:0;right:0;bottom:0;
+            background:rgba(100,200,100,0.5);border-radius:12px;cursor:pointer;
+            transition:all 0.2s;
+          "></span>
+          <span style="
+            position:absolute;top:2px;left:2px;width:20px;height:20px;
+            background:#fff;border-radius:50%;transition:all 0.2s;
+          "></span>
+        </label>
+      </div>
+    `;
+    document.body.appendChild(menu);
+
+    document.getElementById('close-settings')?.addEventListener('click', () => menu.remove());
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) menu.remove();
+    });
+  }
+
+  public showHelpMenu(): void {
+    const existing = document.getElementById('help-menu');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const menu = document.createElement('div');
+    menu.id = 'help-menu';
+    Object.assign(menu.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      borderRadius: '16px',
+      padding: '24px',
+      minWidth: '400px',
+      maxWidth: '90vw',
+      color: '#fff',
+      zIndex: '2001',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 10px 40px rgba(0,0,0,0.5)',
+      maxHeight: '80vh',
+      overflowY: 'auto'
+    });
+
+    menu.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <span style="font-size:18px;font-weight:bold;">❓ 游戏帮助</span>
+        <button id="close-help" style="
+          background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;
+        ">✕</button>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#90EE90;">🕹️ 基础操作</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>WASD / 方向键 - 移动视角</div>
+          <div>鼠标右键 - 旋转视角</div>
+          <div>鼠标滚轮 - 缩放视角</div>
+          <div>左键点击 - 选择/交互</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#87CEEB;">⌨️ 快捷键</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>B - 进入/退出建造模式</div>
+          <div>I - 打开/关闭背包</div>
+          <div>P - 保存游戏</div>
+          <div>L - 加载游戏</div>
+          <div>ESC - 退出当前界面</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#DDA0DD;">🌱 种植说明</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>1. 点击底部"种植"按钮打开作物面板</div>
+          <div>2. 选择要种植的作物</div>
+          <div>3. 点击地面即可种植</div>
+          <div>4. 点击已种植的作物可查看进度/收获</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#DEB887;">🏗️ 建造说明</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>1. 点击"建造"或按B进入建造模式</div>
+          <div>2. 在左侧面板选择建筑或工具</div>
+          <div>3. 点击地面放置建筑</div>
+          <div>4. 再次按B或ESC退出建造模式</div>
+        </div>
+      </div>
+      
+      <div style="margin-bottom:16px;">
+        <div style="font-weight:bold;margin-bottom:8px;color:#FFB6C1;">🐾 异兽说明</div>
+        <div style="font-size:13px;opacity:0.8;line-height:1.8;">
+          <div>1. 点击"异兽"按钮查看我的异兽</div>
+          <div>2. 异兽会自动工作帮助玩家</div>
+          <div>3. 通过喂食提升亲密度解锁能力</div>
+          <div>4. 亲密度越高异兽效果越强</div>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(menu);
+
+    document.getElementById('close-help')?.addEventListener('click', () => menu.remove());
+    menu.addEventListener('click', (e) => {
+      if (e.target === menu) menu.remove();
+    });
+  }
+
+  public hideMainMenu(): void {
+    const existing = document.getElementById('main-menu');
+    if (existing) {
+      existing.remove();
+    }
+  }
+
   public dispose(): void {
-    const elements = ['fps-display', 'phase-display', 'tooltip', 'notification-container', 'action-bar', 'controls-hint'];
+    const elements = ['fps-display', 'phase-display', 'tooltip', 'notification-container', 'action-bar', 'controls-hint', 'crop-panel', 'build-panel', 'inventory-panel', 'crop-info', 'beast-panel', 'beast-info'];
     elements.forEach(id => {
       const element = document.getElementById(id);
       if (element) {
         element.remove();
       }
     });
+    this.removeAllListeners();
   }
 }

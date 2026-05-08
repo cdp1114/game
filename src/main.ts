@@ -119,8 +119,7 @@ class StarFieldGame {
         }
       } else if (e.code === 'Escape') {
         if (this.engine) {
-          // 简单的暂停菜单
-          this.engine.getUIManager().showNotification('游戏暂停 - 按ESC继续', 'info');
+          this.engine.getUIManager().showMainMenu();
         }
       }
     });
@@ -136,6 +135,21 @@ class StarFieldGame {
 
     const cropSystem = this.engine.getCropSystem();
     const beastManager = this.engine.getBeastManager();
+
+    // 尝试加载存档
+    const saveString = localStorage.getItem('xingye_qisu_save');
+    if (saveString) {
+      try {
+        const saveData = JSON.parse(saveString);
+        if (saveData.timestamp) {
+          console.log('📂 检测到存档，正在加载...');
+          this.engine.loadGame();
+          return;
+        }
+      } catch (e) {
+        console.warn('存档加载失败，将创建新游戏');
+      }
+    }
 
     // 创建示例作物
     setTimeout(() => {

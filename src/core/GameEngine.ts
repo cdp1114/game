@@ -154,9 +154,11 @@ export class GameEngine extends EventEmitter {
     });
     this.buildSystem.on('build:edit_mode_entered', () => {
       this.uiManager.showNotification('进入建造模式');
+      this.uiManager.showBuildPanel();
     });
     this.buildSystem.on('build:edit_mode_exited', () => {
       this.uiManager.showNotification('退出建造模式');
+      this.uiManager.hideBuildPanel();
     });
     
     this.inventorySystem.on('shop:item_purchased', (data: any) => {
@@ -171,7 +173,7 @@ export class GameEngine extends EventEmitter {
 
   private setupActionButtonCallbacks(): void {
     this.uiManager.setActionCallback('plant', () => {
-      this.uiManager.showNotification('点击地面即可种植适配当前季节的作物', 'info');
+      this.uiManager.showCropPanel();
     });
 
     this.uiManager.setActionCallback('build', () => {
@@ -187,10 +189,42 @@ export class GameEngine extends EventEmitter {
     });
 
     this.uiManager.setActionCallback('menu', () => {
+      this.uiManager.showMainMenu();
+    });
+
+    this.uiManager.setMenuCallback('save', () => {
       this.saveGame();
       this.uiManager.showNotification('游戏已保存', 'success');
     });
+
+    this.uiManager.setMenuCallback('load', () => {
+      const loaded = this.loadGame();
+      if (loaded) {
+        this.uiManager.showNotification('游戏已加载', 'success');
+      } else {
+        this.uiManager.showNotification('没有找到存档', 'warning');
+      }
+    });
+
+    this.uiManager.setCropSelectCallback((cropId: string) => {
+      this.selectedCropId = cropId;
+      this.uiManager.showNotification(`已选择种植: ${this.cropSystem.getCropConfig(cropId)?.name || cropId}`, 'success');
+    });
+
+    this.uiManager.setBuildingSelectCallback((buildingId: string) => {
+      this.buildSystem.selectBuilding(buildingId);
+    });
+
+    this.uiManager.setToolSelectCallback((toolId: string) => {
+      this.buildSystem.selectTool(toolId);
+    });
+
+    this.uiManager.on('exitBuildMode', () => {
+      this.buildSystem.exitEditMode();
+    });
   }
+
+  private selectedCropId: string | null = null;
 
   private setupCropInteraction(): void {
     this.inputManager.on('click', (data: { position: Vector3 }) => {
@@ -200,8 +234,22 @@ export class GameEngine extends EventEmitter {
         } else if (this.buildSystem.getSelectedTool()) {
           this.buildSystem.useTerrainTool(data.position);
         }
-      } else {
-        this.cropSystem.tryPlantSeedAt(data.position);
+      } else if (this.selectedCropId) {
+        this.cropSystem.plantCrop(this.selectedCropId, data.position);
+        this.selectedCropId = null;
+      }
+    });
+
+    this.inputManager.on('objectSelect', (data: any) => {
+      if (data.object?.userData?.cropId) {
+        const crop = this.cropSystem.getCrop(data.object.userData.cropId);
+        if (crop) {
+          this.uiManager.showCropInfo(crop);
+          if (crop.isHarvestable) {
+            this.cropSystem.harvestCrop(crop.id);
+            this.uiManager.showNotification(`收获了 ${crop.data.name}！`, 'success');
+          }
+        }
       }
     });
   }
