@@ -1,0 +1,41 @@
+# 依赖
+node_modules/
+.pnpm-store/
+
+# 构建输出
+dist/
+build/
+
+# 开发文件
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 游戏存档（开发时不提交）
+*.sav
+game_save_*
+
+# 临时文件
+temp/
+tmp/
+
+# 环境变量
+.env
+.env.local
+
+# 测试覆盖率
+coverage/
+
+# 压缩文件
+*.zip
+*.rar
+*.7z

@@ -1,0 +1,29 @@
+{
+  "name": "xingye-qisu",
+  "version": "1.0.0",
+  "description": "《星野栖所》3D休闲治愈游戏 - 开放世界种田建造",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "game",
+    "three.js",
+    "simulation",
+    "relaxing",
+    "open-world"
+  ],
+  "author": "StarWild Studio",
+  "license": "MIT",
+  "dependencies": {
+    "three": "^0.160.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.160.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.10"
+  }
+}
