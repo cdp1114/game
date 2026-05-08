@@ -319,6 +319,10 @@ export class TimeSystem extends EventEmitter {
     };
   }
 
+  public getTime(): number {
+    return this.currentGameTime;
+  }
+
   private formatGameTime(hours: number): string {
     const h = Math.floor(hours);
     const m = Math.floor((hours - h) * 60);

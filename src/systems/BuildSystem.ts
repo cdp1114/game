@@ -232,6 +232,11 @@ export class BuildSystem extends EventEmitter {
     this.emit('build:tool_selected', { toolId });
   }
 
+  public getToolName(toolId: string): string | undefined {
+    const tool = this.terrainTools.get(toolId);
+    return tool?.name;
+  }
+
   public update(_deltaTime: number): void {
     if (!this.isEditMode) return;
     this.updatePreview();
@@ -440,7 +445,7 @@ export class BuildSystem extends EventEmitter {
     this.scene.add(mesh);
   }
 
-  private createWindmillMesh(def: BuildingDefinition): THREE.Group {
+  private createWindmillMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const baseGeometry = new THREE.CylinderGeometry(0.6, 0.8, 2.5, 8);
@@ -487,7 +492,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createGardenBenchMesh(def: BuildingDefinition): THREE.Group {
+  private createGardenBenchMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const seatGeometry = new THREE.BoxGeometry(1.6, 0.1, 0.5);
@@ -515,7 +520,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createStoneLampMesh(def: BuildingDefinition): THREE.Group {
+  private createStoneLampMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const pillarGeometry = new THREE.CylinderGeometry(0.12, 0.15, 1.2, 6);
@@ -548,7 +553,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createFlowerBedMesh(def: BuildingDefinition): THREE.Group {
+  private createFlowerBedMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const bedGeometry = new THREE.BoxGeometry(1.6, 0.4, 1.6);
@@ -595,7 +600,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createFenceMesh(def: BuildingDefinition): THREE.Group {
+  private createFenceMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const postGeometry = new THREE.BoxGeometry(0.08, 0.8, 0.08);
@@ -623,7 +628,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createStorageCabinetMesh(def: BuildingDefinition): THREE.Group {
+  private createStorageCabinetMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const bodyGeometry = new THREE.BoxGeometry(1.6, 1.2, 0.5);
@@ -657,7 +662,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createBeastHouseMesh(def: BuildingDefinition): THREE.Group {
+  private createBeastHouseMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const baseGeometry = new THREE.BoxGeometry(2.4, 0.3, 2.4);
@@ -708,7 +713,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createGreenhouseMesh(def: BuildingDefinition): THREE.Group {
+  private createGreenhouseMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const baseGeometry = new THREE.BoxGeometry(2.4, 0.2, 2.4);
@@ -755,7 +760,7 @@ export class BuildSystem extends EventEmitter {
     return group;
   }
 
-  private createFountainMesh(def: BuildingDefinition): THREE.Group {
+  private createFountainMesh(_def: BuildingDefinition): THREE.Group {
     const group = new THREE.Group();
 
     const baseGeometry = new THREE.CylinderGeometry(2, 2.3, 0.4, 16);
@@ -823,8 +828,11 @@ export class BuildSystem extends EventEmitter {
         object.rotation.z = time * 0.5;
       }
       if (object.userData.isLamp) {
-        const material = object.material as THREE.MeshStandardMaterial;
-        material.emissiveIntensity = 0.4 + Math.sin(time * 2) * 0.2;
+        const mesh = object as THREE.Mesh;
+        if (mesh.material && 'emissiveIntensity' in mesh.material) {
+          const material = mesh.material as THREE.MeshStandardMaterial;
+          material.emissiveIntensity = 0.4 + Math.sin(time * 2) * 0.2;
+        }
       }
       if (object.userData.isFountainTop) {
         object.rotation.y = time * 0.3;
