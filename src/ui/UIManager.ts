@@ -448,7 +448,6 @@ export class UIManager extends EventEmitter {
         const cropId = item.getAttribute('data-crop-id');
         if (cropId && this.cropSelectCallback) {
           this.cropSelectCallback(cropId);
-          this.showNotification(`已选择种植: ${crops.find(c => c.id === cropId)?.name}`, 'success');
           this.cropPanel?.remove();
           this.cropPanel = null;
         }

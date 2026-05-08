@@ -435,6 +435,12 @@ export class GameEngine extends EventEmitter {
   }
 
   public saveGame(): GameSaveData {
+    const resources = this.inventorySystem.getResources();
+    const resourceItems: Record<string, number> = {};
+    resources.forEach((amount, itemId) => {
+      resourceItems[itemId] = amount;
+    });
+
     const saveData: GameSaveData = {
       version: '1.0.0',
       timestamp: Date.now(),
@@ -444,9 +450,9 @@ export class GameEngine extends EventEmitter {
       unlockedScenes: ['spring_plains'],
       crops: this.cropSystem.getSaveData(),
       beasts: this.beastManager.getSaveData(),
-      buildings: [],
+      buildings: this.buildSystem.save().placedBuildings,
       terrain: { modifications: [] },
-      resources: { items: new Map() },
+      resources: { items: resourceItems },
       storyProgress: { unlockedFragments: [], completedChapters: [], viewedDialogues: [] },
       settings: { musicVolume: 0.8, sfxVolume: 0.8, graphicsQuality: 'MEDIUM', showTutorial: true }
     };
@@ -490,7 +496,12 @@ export class GameEngine extends EventEmitter {
       });
     }
     if (saveData.buildings && saveData.buildings.length > 0) {
-      // Buildings loaded via buildSystem
+      this.buildSystem.load({ placedBuildings: saveData.buildings, terrainModifications: [] });
+    }
+    if (saveData.resources?.items) {
+      Object.entries(saveData.resources.items).forEach(([itemId, amount]) => {
+        this.inventorySystem.addItem(itemId, amount);
+      });
     }
   }
 
