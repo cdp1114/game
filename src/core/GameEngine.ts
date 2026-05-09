@@ -12,6 +12,8 @@ import { GameSaveData } from './types';
 import { BuildSystem } from '../systems/BuildSystem';
 import { InventorySystem } from '../systems/InventorySystem';
 import { Vector3 } from './types';
+import { PostProcessingSystem } from '../systems/PostProcessingSystem';
+import { LODSystem, LODManager } from '../systems/LODSystem';
 
 export class GameEngine extends EventEmitter {
   private renderer!: THREE.WebGLRenderer;
@@ -26,6 +28,8 @@ export class GameEngine extends EventEmitter {
   private inputManager!: InputManager;
   private buildSystem!: BuildSystem;
   private inventorySystem!: InventorySystem;
+  private postProcessingSystem!: PostProcessingSystem;
+  private lodSystem!: LODSystem;
   
   private clock: THREE.Clock;
   private isRunning: boolean = false;
@@ -134,6 +138,16 @@ export class GameEngine extends EventEmitter {
     this.uiManager = new UIManager();
     this.inventorySystem = new InventorySystem();
     this.buildSystem = new BuildSystem(this.scene, this.camera);
+    
+    this.postProcessingSystem = new PostProcessingSystem(
+      this.renderer,
+      this.scene,
+      this.camera
+    );
+    
+    this.lodSystem = new LODSystem(this.camera);
+    LODManager.getInstance().init(this.camera);
+    
     this.setupCropInteraction();
   }
 
@@ -337,6 +351,8 @@ export class GameEngine extends EventEmitter {
     this.buildSystem.update(deltaTime);
     this.buildSystem.animateBuildings(this.timeSystem.getTime() / 1000);
     this.updateCamera(deltaTime);
+    this.lodSystem.update(this.camera.position);
+    this.postProcessingSystem.update();
   }
 
   private updateCamera(_deltaTime: number): void {
@@ -352,7 +368,11 @@ export class GameEngine extends EventEmitter {
   }
 
   private render(): void {
-    this.renderer.render(this.scene, this.camera);
+    if (this.postProcessingSystem.isPostProcessingEnabled()) {
+      this.postProcessingSystem.render();
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   private updateFPS(_deltaTime: number): void {
@@ -370,6 +390,7 @@ export class GameEngine extends EventEmitter {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.postProcessingSystem.updateSize(window.innerWidth, window.innerHeight);
   }
 
   private onTimeUpdate(data: any): void {
@@ -574,6 +595,14 @@ export class GameEngine extends EventEmitter {
     return this.inputManager.getMouse();
   }
 
+  public getPostProcessingSystem(): PostProcessingSystem {
+    return this.postProcessingSystem;
+  }
+
+  public getLODSystem(): LODSystem {
+    return this.lodSystem;
+  }
+
   // 销毁
   public dispose(): void {
     this.isRunning = false;
@@ -584,6 +613,8 @@ export class GameEngine extends EventEmitter {
     this.cropSystem.dispose();
     this.beastManager.dispose();
     this.uiManager.dispose();
+    this.postProcessingSystem.dispose();
+    this.lodSystem.dispose();
     
     this.renderer.dispose();
     this.removeAllListeners();
