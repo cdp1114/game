@@ -4,6 +4,7 @@ import { VoxelGameEngine } from './systems/VoxelGameEngine';
 const container = document.getElementById('game-container')!;
 const loadingScreen = document.getElementById('loading-screen')!;
 
+// 体素模式初始化
 async function initVoxelGame() {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87CEEB);
@@ -117,17 +118,6 @@ function showNotification(message: string) {
   }, 2000);
 }
 
-const urlParams = new URLSearchParams(window.location.search);
-const mode = urlParams.get('mode');
-
-if (mode === 'voxel') {
-  document.title = '体素世界 - 建造与探索';
-  initVoxelGame();
-} else {
-  import('./main').then(() => {
-    console.log('原版星野栖所已加载');
-  }).catch(() => {
-    console.warn('无法加载原版游戏，切换到体素模式');
-    initVoxelGame();
-  });
-}
+// 直接初始化体素模式（HTML会根据URL参数加载此文件）
+document.title = '🎮 体素世界 - 建造与探索';
+initVoxelGame();
