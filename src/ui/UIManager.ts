@@ -1092,7 +1092,29 @@ export class UIManager extends EventEmitter {
             cursor:pointer;
             transition:all 0.2s;
           ">⚙️ 游戏设置</button>
-          
+
+          <button id="menu-inventory" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(255,200,100,0.3),rgba(255,180,80,0.2));
+            border:1px solid rgba(255,200,100,0.4);
+            border-radius:12px;
+            color:#FFD700;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">🎒 背包(${this.getInventoryItemCount() || 0})</button>
+
+          <button id="menu-achievements" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(255,100,100,0.3),rgba(255,80,80,0.2));
+            border:1px solid rgba(255,100,100,0.4);
+            border-radius:12px;
+            color:#FF6B6B;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">🏆 成就</button>
+
           <button id="menu-help" class="menu-btn" style="
             padding:14px 32px;
             background:linear-gradient(135deg,rgba(180,100,200,0.3),rgba(160,80,180,0.2));
@@ -1143,6 +1165,16 @@ export class UIManager extends EventEmitter {
     document.getElementById('menu-settings')?.addEventListener('click', () => {
       menu.remove();
       this.showSettingsMenu();
+    });
+
+    document.getElementById('menu-inventory')?.addEventListener('click', () => {
+      menu.remove();
+      this.showInventoryPanel();
+    });
+
+    document.getElementById('menu-achievements')?.addEventListener('click', () => {
+      menu.remove();
+      this.showAchievementsPanel();
     });
 
     document.getElementById('menu-help')?.addEventListener('click', () => {
