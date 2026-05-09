@@ -917,12 +917,12 @@ export class UIManager extends EventEmitter {
 
   private getAvailableCrops(): any[] {
     return [
-      { id: 'wheat', name: '小麦', growthTime: 60, harvestYield: [{ itemId: 'wheat_grain', amount: 3 }] },
-      { id: 'tomato', name: '番茄', growthTime: 45, harvestYield: [{ itemId: 'tomato', amount: 4 }] },
-      { id: 'carrot', name: '胡萝卜', growthTime: 40, harvestYield: [{ itemId: 'carrot', amount: 3 }] },
-      { id: 'cabbage', name: '卷心菜', growthTime: 50, harvestYield: [{ itemId: 'cabbage', amount: 2 }] },
-      { id: 'star_flower', name: '星绒花', growthTime: 90, harvestYield: [{ itemId: 'star_petal', amount: 2 }] },
-      { id: 'moon_fruit', name: '月华果', growthTime: 120, harvestYield: [{ itemId: 'moon_crystal', amount: 3 }] }
+      { id: 'wheat', name: '小麦', growthTime: 60, seasons: ['SPRING', 'SUMMER', 'AUTUMN', 'WINTER'], harvestYield: [{ itemId: 'wheat_grain', amount: 3 }] },
+      { id: 'tomato', name: '番茄', growthTime: 45, seasons: ['SPRING', 'SUMMER', 'AUTUMN'], harvestYield: [{ itemId: 'tomato', amount: 4 }] },
+      { id: 'carrot', name: '胡萝卜', growthTime: 40, seasons: ['SPRING', 'SUMMER', 'AUTUMN'], harvestYield: [{ itemId: 'carrot', amount: 3 }] },
+      { id: 'cabbage', name: '卷心菜', growthTime: 50, seasons: ['SPRING', 'AUTUMN', 'WINTER'], harvestYield: [{ itemId: 'cabbage', amount: 2 }] },
+      { id: 'star_flower', name: '星绒花', growthTime: 90, seasons: ['SPRING', 'SUMMER'], harvestYield: [{ itemId: 'star_petal', amount: 2 }] },
+      { id: 'moon_fruit', name: '月华果', growthTime: 120, seasons: ['SUMMER', 'AUTUMN'], harvestYield: [{ itemId: 'moon_crystal', amount: 3 }] }
     ];
   }
 
