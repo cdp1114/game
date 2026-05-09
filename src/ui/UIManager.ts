@@ -202,6 +202,7 @@ export class UIManager extends EventEmitter {
       const button = document.createElement('button');
       button.id = `action-${action.id}`;
       button.className = 'action-button';
+      button.dataset.action = action.id;
       button.innerHTML = `
         <div class="action-icon">${action.icon}</div>
         <span class="action-label">${action.label}</span>

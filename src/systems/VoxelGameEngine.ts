@@ -42,7 +42,7 @@ export class VoxelGameEngine extends EventEmitter {
   }
 
   private getGroundHeight(x: number, z: number): number {
-    for (let y = 64; y >= 0; y--) {
+    for (let y = 32; y >= 0; y--) {
       const block = this.voxelTerrain.getBlock(Math.floor(x), y, Math.floor(z));
       if (block !== 0) {
         return y + 1;

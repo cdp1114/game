@@ -170,8 +170,8 @@ export class FirstPersonController extends EventEmitter {
       this.velocity.x = 0;
     }
 
-    const forward = new THREE.Vector3();
-    this.camera.getWorldDirection(forward);
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(this.camera.quaternion);
     forward.y = 0;
     forward.normalize();
 
