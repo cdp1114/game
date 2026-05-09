@@ -14,6 +14,9 @@ import { InventorySystem } from '../systems/InventorySystem';
 import { Vector3 } from './types';
 import { PostProcessingSystem } from '../systems/PostProcessingSystem';
 import { LODSystem, LODManager } from '../systems/LODSystem';
+import { TutorialSystem } from '../systems/TutorialSystem';
+import { UIFeedbackSystem } from '../systems/UIFeedbackSystem';
+import { WeatherInteractionSystem } from '../systems/WeatherInteractionSystem';
 
 export class GameEngine extends EventEmitter {
   private renderer!: THREE.WebGLRenderer;
@@ -30,6 +33,9 @@ export class GameEngine extends EventEmitter {
   private inventorySystem!: InventorySystem;
   private postProcessingSystem!: PostProcessingSystem;
   private lodSystem!: LODSystem;
+  private tutorialSystem!: TutorialSystem;
+  private uiFeedbackSystem!: UIFeedbackSystem;
+  private weatherInteractionSystem!: WeatherInteractionSystem;
   
   private clock: THREE.Clock;
   private isRunning: boolean = false;
@@ -148,7 +154,21 @@ export class GameEngine extends EventEmitter {
     this.lodSystem = new LODSystem(this.camera);
     LODManager.getInstance().init(this.camera);
     
+    this.tutorialSystem = new TutorialSystem();
+    this.uiFeedbackSystem = new UIFeedbackSystem();
+    this.weatherInteractionSystem = new WeatherInteractionSystem();
+    
     this.setupCropInteraction();
+    this.setupNewPlayerTutorial();
+  }
+  
+  private setupNewPlayerTutorial(): void {
+    const tutorialCompleted = this.tutorialSystem.hasCompletedTutorial('basic_intro');
+    if (!tutorialCompleted) {
+      setTimeout(() => {
+        this.tutorialSystem.startTutorial('basic_intro');
+      }, 2000);
+    }
   }
 
   private setupEventListeners(): void {
@@ -603,6 +623,18 @@ export class GameEngine extends EventEmitter {
     return this.lodSystem;
   }
 
+  public getTutorialSystem(): TutorialSystem {
+    return this.tutorialSystem;
+  }
+
+  public getUIFeedbackSystem(): UIFeedbackSystem {
+    return this.uiFeedbackSystem;
+  }
+
+  public getWeatherInteractionSystem(): WeatherInteractionSystem {
+    return this.weatherInteractionSystem;
+  }
+
   // 销毁
   public dispose(): void {
     this.isRunning = false;
@@ -615,6 +647,9 @@ export class GameEngine extends EventEmitter {
     this.uiManager.dispose();
     this.postProcessingSystem.dispose();
     this.lodSystem.dispose();
+    this.tutorialSystem.dispose();
+    this.uiFeedbackSystem.dispose();
+    this.weatherInteractionSystem.dispose();
     
     this.renderer.dispose();
     this.removeAllListeners();
