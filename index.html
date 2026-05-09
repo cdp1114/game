@@ -706,12 +706,7 @@
         </div>
     </div>
 
-    <!-- 游戏主入口 - 根据URL参数动态加载 -->
-    <script>
-      const urlParams = new URLSearchParams(window.location.search);
-      const mode = urlParams.get('mode');
-      const entryPoint = mode === 'voxel' ? '/src/voxel-main.ts' : '/src/main.ts';
-      document.write(`<script type="module" src="${entryPoint}"><\/script>`);
-    </script>
+    <!-- 游戏主入口 -->
+    <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
