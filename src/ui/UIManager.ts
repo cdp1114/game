@@ -106,7 +106,6 @@ export class UIManager extends EventEmitter {
   private cropSelectCallback: ((cropId: string) => void) | null = null;
   private buildingSelectCallback: ((buildingId: string) => void) | null = null;
   private toolSelectCallback: ((toolId: string) => void) | null = null;
-  private beastSelectCallback: ((beastId: string) => void) | null = null;
   private menuCallback: Record<string, () => void> = {};
 
   public setCropSelectCallback(callback: (cropId: string) => void): void {
@@ -119,10 +118,6 @@ export class UIManager extends EventEmitter {
 
   public setToolSelectCallback(callback: (toolId: string) => void): void {
     this.toolSelectCallback = callback;
-  }
-
-  public setBeastSelectCallback(callback: (beastId: string) => void): void {
-    this.beastSelectCallback = callback;
   }
 
   public setMenuCallback(action: string, callback: () => void): void {
@@ -1260,9 +1255,19 @@ export class UIManager extends EventEmitter {
     beastList.querySelectorAll('.beast-item').forEach(item => {
       item.addEventListener('click', () => {
         const beastId = item.getAttribute('data-beast-id');
-        if (beastId && this.beastSelectCallback) {
-          this.beastSelectCallback(beastId);
-          this.showNotification(`与 ${beasts.find(b => b.id === beastId)?.name} 互动中...`, 'success');
+        if (beastId) {
+          // 更新选中状态
+          (this as any).selectedBeastId = beastId;
+          
+          // 更新UI显示选中状态
+          beastList.querySelectorAll('.beast-item').forEach((el) => {
+            const element = el as HTMLElement;
+            element.style.borderColor = el === item ? 'rgba(200,150,255,0.8)' : 'transparent';
+            element.style.background = el === item ? 'rgba(200,150,255,0.15)' : 'rgba(255,255,255,0.08)';
+          });
+          
+          this.showNotification(`已选择 ${beasts.find(b => b.id === beastId)?.name}`, 'success');
+          this.updateBeastFoodList();
         }
       });
     });
@@ -1273,6 +1278,8 @@ export class UIManager extends EventEmitter {
     if (!foodList) return;
 
     const foods = this.getBeastFoods();
+    const selectedBeast = (this as any).selectedBeastId || null;
+    
     foodList.innerHTML = foods.map(food => `
       <div class="food-item" data-food-id="${food.id}" style="
         background: rgba(255,255,255,0.08);
@@ -1284,12 +1291,34 @@ export class UIManager extends EventEmitter {
         align-items:center;
         gap:6px;
         transition: all 0.2s;
-        border: 1px solid transparent;
-      " onmouseover="this.style.background='rgba(255,200,150,0.2)';this.style.borderColor='rgba(255,180,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';" onclick="alert('选择要喂食的异兽后，点击这里喂食')">
+        border: 1px solid ${selectedBeast ? 'rgba(255,180,100,0.3)' : 'transparent'};
+        opacity: ${selectedBeast ? 1 : 0.5};
+      " onmouseover="this.style.background='rgba(255,200,150,0.2)';this.style.borderColor='rgba(255,180,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='${selectedBeast ? 'rgba(255,180,100,0.3)' : 'transparent'}';" onclick="window.uiManager?.feedSelectedBeast('${food.id}')">
         <span>${food.emoji}</span>
         <span>${food.name}</span>
+        <span style="font-size:10px;opacity:0.6;margin-left:auto;">+${food.intimacy || 20} ❤</span>
       </div>
     `).join('');
+  }
+
+  private selectedBeastId: string | null = null;
+
+  public feedSelectedBeast(foodId: string): void {
+    if (!this.selectedBeastId) {
+      this.showNotification('请先选择一只异兽', 'warning');
+      return;
+    }
+
+    const foods = this.getBeastFoods();
+    const food = foods.find(f => f.id === foodId);
+    const intimacyGain = food?.intimacy || 20;
+
+    const beastManager = gameEngine?.getBeastManager?.();
+    if (beastManager) {
+      beastManager.feedBeast(this.selectedBeastId, foodId);
+      this.showNotification(`喂食成功！亲密度+${intimacyGain} ❤`, 'success');
+      this.updateBeastList();
+    }
   }
 
   private getBeastEmoji(type: string): string {
@@ -1382,11 +1411,12 @@ export class UIManager extends EventEmitter {
 
   private getBeastFoods(): any[] {
     return [
-      { id: 'bunny_treat', name: '星兔点心', emoji: '🥕' },
-      { id: 'bird_seed_mix', name: '云雀混合粮', emoji: '🌾' },
-      { id: 'deer_moss', name: '雾鹿苔藓', emoji: '🌿' },
-      { id: 'fish_treat', name: '晶溪鱼干', emoji: '🐟' },
-      { id: 'berry_mix', name: '星果拼盘', emoji: '🍇' }
+      { id: 'bunny_treat', name: '星兔点心', emoji: '🥕', intimacy: 25 },
+      { id: 'bird_seed_mix', name: '云雀混合粮', emoji: '🌾', intimacy: 20 },
+      { id: 'deer_moss', name: '雾鹿苔藓', emoji: '🌿', intimacy: 30 },
+      { id: 'fish_treat', name: '晶溪鱼干', emoji: '🐟', intimacy: 25 },
+      { id: 'berry_mix', name: '星果拼盘', emoji: '🍇', intimacy: 35 },
+      { id: 'star_cookie', name: '星耀曲奇', emoji: '🍪', intimacy: 40 }
     ];
   }
 
