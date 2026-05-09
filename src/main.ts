@@ -3,7 +3,7 @@
 import { GameEngine } from './core/GameEngine';
 
 class StarFieldGame {
-  private engine: GameEngine | null = null;
+  public engine: GameEngine | null = null;
 
   constructor() {
     this.init();
@@ -225,5 +225,8 @@ class StarFieldGame {
 
 // 启动游戏
 window.addEventListener('DOMContentLoaded', () => {
-  new StarFieldGame();
+  const game = new StarFieldGame();
+  setTimeout(() => {
+    (window as any).uiManager = game.engine?.getUIManager?.();
+  }, 1500);
 });
