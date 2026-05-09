@@ -257,6 +257,15 @@ export class GameEngine extends EventEmitter {
     this.uiManager.on('exitBuildMode', () => {
       this.buildSystem.exitEditMode();
     });
+
+    // 监听作物系统事件
+    this.cropSystem.on('plant:season_mismatch', (data) => {
+      this.uiManager.showNotification(data.message, 'warning');
+    });
+
+    this.cropSystem.on('plant:failed', (data) => {
+      this.uiManager.showNotification(data.message, 'error');
+    });
   }
 
   private selectedCropId: string | null = null;
