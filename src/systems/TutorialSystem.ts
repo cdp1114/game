@@ -389,6 +389,8 @@ export class TutorialSystem extends EventEmitter {
       </div>
     `;
 
+    this.tooltipElement.innerHTML = html;
+
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = `
       display: flex;
@@ -436,8 +438,7 @@ export class TutorialSystem extends EventEmitter {
       buttonContainer.appendChild(nextBtn);
     }
 
-    html += buttonContainer.outerHTML;
-    this.tooltipElement.innerHTML = html;
+    this.tooltipElement.appendChild(buttonContainer);
   }
 
   private positionTooltip(step: TutorialStep): void {
