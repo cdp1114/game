@@ -17,6 +17,10 @@ import { LODSystem, LODManager } from '../systems/LODSystem';
 import { TutorialSystem } from '../systems/TutorialSystem';
 import { UIFeedbackSystem } from '../systems/UIFeedbackSystem';
 import { WeatherInteractionSystem } from '../systems/WeatherInteractionSystem';
+import { AchievementSystem } from '../systems/AchievementSystem';
+import { StorySystem } from '../systems/StorySystem';
+import { FriendSystem } from '../systems/FriendSystem';
+import { MultiplayerSystem } from '../systems/MultiplayerSystem';
 
 export class GameEngine extends EventEmitter {
   private renderer!: THREE.WebGLRenderer;
@@ -36,6 +40,10 @@ export class GameEngine extends EventEmitter {
   private tutorialSystem!: TutorialSystem;
   private uiFeedbackSystem!: UIFeedbackSystem;
   private weatherInteractionSystem!: WeatherInteractionSystem;
+  private achievementSystem!: AchievementSystem;
+  private storySystem!: StorySystem;
+  private friendSystem!: FriendSystem;
+  private multiplayerSystem!: MultiplayerSystem;
   
   private clock: THREE.Clock;
   private isRunning: boolean = false;
@@ -157,6 +165,10 @@ export class GameEngine extends EventEmitter {
     this.tutorialSystem = new TutorialSystem();
     this.uiFeedbackSystem = new UIFeedbackSystem();
     this.weatherInteractionSystem = new WeatherInteractionSystem();
+    this.achievementSystem = new AchievementSystem();
+    this.storySystem = new StorySystem();
+    this.friendSystem = new FriendSystem();
+    this.multiplayerSystem = new MultiplayerSystem();
     
     this.setupCropInteraction();
     this.setupNewPlayerTutorial();
@@ -642,6 +654,22 @@ export class GameEngine extends EventEmitter {
 
   public getWeatherInteractionSystem(): WeatherInteractionSystem {
     return this.weatherInteractionSystem;
+  }
+
+  public getAchievementSystem(): AchievementSystem {
+    return this.achievementSystem;
+  }
+
+  public getStorySystem(): StorySystem {
+    return this.storySystem;
+  }
+
+  public getFriendSystem(): FriendSystem {
+    return this.friendSystem;
+  }
+
+  public getMultiplayerSystem(): MultiplayerSystem {
+    return this.multiplayerSystem;
   }
 
   // 销毁
