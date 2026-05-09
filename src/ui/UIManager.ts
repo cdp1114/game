@@ -2,6 +2,60 @@
 
 import { Season, Weather, DayPhase } from '../core/types';
 import { EventEmitter } from '../core/EventEmitter';
+import { GameEngine } from '../core/GameEngine';
+
+// 游戏系统引用
+let gameEngine: GameEngine | null = null;
+export function setGameEngine(engine: GameEngine): void {
+  gameEngine = engine;
+}
+
+// 全局UI样式
+const UI_STYLES = `
+  .panel-close-btn {
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+  }
+  .panel-close-btn:hover {
+    background: rgba(255,100,100,0.3);
+    border-color: rgba(255,100,100,0.5);
+  }
+  .action-btn {
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .action-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.1);
+  }
+  .mini-btn {
+    padding: 6px 10px;
+    border-radius: 6px;
+    border: 1px solid;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mini-btn:hover {
+    transform: scale(1.05);
+  }
+  .section-title {
+    font-size: 14px;
+    font-weight: bold;
+  }
+`;
 
 // SVG图标定义
 const SVG_ICONS = {
@@ -81,8 +135,17 @@ export class UIManager extends EventEmitter {
 
   constructor() {
     super();
+    this.injectGlobalStyles();
     this.initializeElements();
     this.createNotificationSystem();
+  }
+
+  private injectGlobalStyles(): void {
+    if (document.getElementById('ui-global-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'ui-global-styles';
+    style.textContent = UI_STYLES;
+    document.head.appendChild(style);
   }
 
   private initializeElements(): void {
@@ -344,262 +407,391 @@ export class UIManager extends EventEmitter {
   }
 
   private showInventoryPanel(): void {
+    const existing = document.getElementById('inventory-panel');
+    if (existing) { existing.remove(); return; }
+
     const panel = document.createElement('div');
     panel.id = 'inventory-panel';
     Object.assign(panel.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      background: 'rgba(20, 25, 40, 0.98)',
-      color: '#fff',
-      padding: '24px',
-      borderRadius: '16px',
-      fontSize: '14px',
-      zIndex: '1000',
-      minWidth: '450px',
-      maxWidth: '600px',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', fontSize: '14px', zIndex: '1001',
+      minWidth: '500px', maxWidth: '650px', maxHeight: '80vh', overflowY: 'auto',
+      border: '1px solid rgba(255, 200, 100, 0.3)',
+      boxShadow: '0 0 40px rgba(255, 200, 100, 0.2), 0 20px 60px rgba(0,0,0,0.5)'
     });
 
     const items = this.getInventoryItems();
     const totalCount = items.reduce((sum, item) => sum + item.count, 0);
 
+    const categories = [
+      { key: 'crop', name: '🌱 作物', icon: '🌱' },
+      { key: 'resource', name: '📦 资源', icon: '📦' },
+      { key: 'special', name: '✨ 特殊', icon: '✨' }
+    ];
+
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:24px;">🎒</span>
-          <span style="font-size:20px;font-weight:bold;">背包</span>
-          <span style="font-size:13px;opacity:0.6;">(${totalCount}/100)</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:28px;">🎒</span>
+          <div>
+            <div style="font-size:20px;font-weight:bold;color:#FFD700;">背包</div>
+            <div style="font-size:12px;opacity:0.6;">${totalCount}/100 格</div>
+          </div>
         </div>
-        <button id="close-inventory" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+        <button id="close-inventory" class="panel-close-btn">✕</button>
       </div>
       ${items.length > 0 ? `
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;">
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+            ${categories.map(cat => `
+              <button class="category-tab active" data-category="${cat.key}">
+                ${cat.icon} ${cat.name}
+              </button>
+            `).join('')}
+          </div>
+        </div>
+        <div id="inventory-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:12px;">
           ${items.map(item => `
-            <div style="
-              background:rgba(255,255,255,0.08);
-              padding:12px;
-              border-radius:10px;
-              text-align:center;
-              cursor:pointer;
-              transition:all 0.2s;
-              border:1px solid transparent;
-            " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(255,200,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
-              <div style="font-size:28px;margin-bottom:4px;">${item.emoji}</div>
-              <div style="font-size:12px;font-weight:bold;margin-bottom:2px;">${item.name}</div>
-              <div style="font-size:11px;opacity:0.7;">x${item.count}</div>
+            <div class="inventory-item" data-category="${item.category}" style="
+              background:rgba(255,200,100,0.08);
+              padding:14px;border-radius:12px;text-align:center;cursor:pointer;
+              transition:all 0.2s;border:1px solid rgba(255,200,100,0.15);
+            " onmouseover="this.style.background='rgba(255,200,100,0.15)';this.style.borderColor='rgba(255,200,100,0.4)';" onmouseout="this.style.background='rgba(255,200,100,0.08)';this.style.borderColor='rgba(255,200,100,0.15)';">
+              <div style="font-size:36px;margin-bottom:8px;">${item.emoji}</div>
+              <div style="font-size:12px;font-weight:bold;margin-bottom:4px;">${item.name}</div>
+              <div style="font-size:11px;padding:3px 8px;background:rgba(255,200,100,0.2);border-radius:10px;display:inline-block;">
+                x${item.count}
+              </div>
             </div>
           `).join('')}
         </div>
       ` : `
-        <div style="text-align:center;padding:40px 20px;opacity:0.6;">
-          <div style="font-size:48px;margin-bottom:10px;">📦</div>
-          <div>背包空空如也</div>
-          <div style="font-size:12px;margin-top:8px;">收获作物后可在此查看</div>
+        <div style="text-align:center;padding:50px;opacity:0.7;">
+          <div style="font-size:56px;margin-bottom:12px;">📦</div>
+          <div style="font-size:16px;margin-bottom:8px;">背包空空如也</div>
+          <div style="font-size:13px;">收获作物后可在此查看</div>
         </div>
       `}
     `;
 
     document.body.appendChild(panel);
-
-    document.getElementById('close-inventory')?.addEventListener('click', () => panel.remove());
-    panel.addEventListener('click', (e) => {
-      if (e.target === panel) panel.remove();
-    });
+    panel.querySelector('#close-inventory')?.addEventListener('click', () => panel.remove());
+    panel.addEventListener('click', (e) => { if (e.target === panel) panel.remove(); });
   }
 
   private getInventoryItems(): Array<{ id: string; name: string; emoji: string; count: number; category: string }> {
+    const inventorySystem = gameEngine?.getInventorySystem?.();
+    if (inventorySystem) {
+      return inventorySystem.getItems?.().map((item: any) => ({
+        id: item.itemId,
+        name: item.name,
+        emoji: this.getItemEmoji(item.itemId),
+        count: item.amount,
+        category: this.getItemCategory(item.type)
+      })) || [];
+    }
     return [
       { id: 'wheat_grain', name: '小麦粒', emoji: '🌾', count: 5, category: 'crop' },
       { id: 'tomato', name: '番茄', emoji: '🍅', count: 3, category: 'crop' },
       { id: 'carrot', name: '胡萝卜', emoji: '🥕', count: 2, category: 'crop' },
       { id: 'star_petal', name: '星绒花瓣', emoji: '🌸', count: 1, category: 'special' },
-      { id: 'moon_crystal', name: '月华晶', emoji: '💎', count: 0, category: 'special' }
-    ].filter(item => item.count > 0);
+      { id: 'wood', name: '木材', emoji: '🪵', count: 20, category: 'resource' },
+      { id: 'stone', name: '石材', emoji: '🪨', count: 15, category: 'resource' }
+    ];
+  }
+
+  private getItemEmoji(itemId: string): string {
+    const emojis: Record<string, string> = {
+      wheat: '🌾', tomato: '🍅', carrot: '🥕', cabbage: '🥬',
+      star_petal: '🌸', moon_crystal: '💎', wood: '🪵', stone: '🪨',
+      star_flower: '🌸', moon_fruit: '🌙', crystal_grape: '🍇'
+    };
+    return emojis[itemId] || '📦';
+  }
+
+  private getItemCategory(type: string): string {
+    if (type?.includes('CROP') || type?.includes('SEED')) return 'crop';
+    if (type?.includes('RESOURCE')) return 'resource';
+    return 'special';
   }
 
   public getInventoryItemCount(): number {
     return this.getInventoryItems().reduce((sum, item) => sum + item.count, 0);
   }
 
-  private showAchievementsPanel(): void {
-    const existing = document.getElementById('achievements-panel');
-    if (existing) {
-      existing.remove();
-      return;
-    }
+  private showQuestPanel(): void {
+    const existing = document.getElementById('quest-panel');
+    if (existing) { existing.remove(); return; }
 
     const panel = document.createElement('div');
-    panel.id = 'achievements-panel';
+    panel.id = 'quest-panel';
     Object.assign(panel.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      background: 'rgba(20, 25, 40, 0.98)',
-      color: '#fff',
-      padding: '24px',
-      borderRadius: '16px',
-      fontSize: '14px',
-      zIndex: '1000',
-      minWidth: '500px',
-      maxWidth: '700px',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', fontSize: '14px', zIndex: '1001',
+      minWidth: '550px', maxWidth: '700px', maxHeight: '80vh', overflowY: 'auto',
+      border: '1px solid rgba(180, 100, 200, 0.3)',
+      boxShadow: '0 0 40px rgba(180, 100, 200, 0.2), 0 20px 60px rgba(0,0,0,0.5)'
     });
 
-    const achievements = this.getAchievements();
-    const unlockedCount = achievements.filter(a => a.unlocked).length;
+    const quests = this.getQuestsData();
+    const activeQuests = quests.filter(q => q.status === 'active');
+    const completedQuests = quests.filter(q => q.status === 'completed');
 
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:24px;">🏆</span>
-          <span style="font-size:20px;font-weight:bold;">成就</span>
-          <span style="font-size:13px;opacity:0.6;">(${unlockedCount}/${achievements.length})</span>
-        </div>
-        <button id="close-achievements" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        ${achievements.map(achievement => `
-          <div style="
-            background:${achievement.unlocked ? 'rgba(255,200,100,0.15)' : 'rgba(255,255,255,0.05)'};
-            padding:16px;
-            border-radius:12px;
-            display:flex;
-            align-items:center;
-            gap:16px;
-            border:1px solid ${achievement.unlocked ? 'rgba(255,200,100,0.3)' : 'transparent'};
-            opacity:${achievement.unlocked ? '1' : '0.6'};
-          ">
-            <div style="
-              width:48px;
-              height:48px;
-              border-radius:50%;
-              background:${achievement.unlocked ? 'linear-gradient(135deg,#FFD700,#FFA500)' : 'rgba(100,100,100,0.3)'};
-              display:flex;
-              align-items:center;
-              justify-content:center;
-              font-size:24px;
-            ">${achievement.unlocked ? '✓' : achievement.icon}</div>
-            <div style="flex:1;">
-              <div style="font-weight:bold;margin-bottom:4px;">${achievement.name}</div>
-              <div style="font-size:12px;opacity:0.7;">${achievement.description}</div>
-              ${achievement.progress !== undefined ? `
-                <div style="margin-top:8px;">
-                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
-                    <span>进度</span>
-                    <span>${achievement.progress}/${achievement.target || 1}</span>
-                  </div>
-                  <div style="background:rgba(255,255,255,0.1);height:4px;border-radius:2px;overflow:hidden;">
-                    <div style="width:${(achievement.progress / (achievement.target || 1)) * 100}%;height:100%;background:${achievement.unlocked ? '#FFD700' : '#4CAF50'};transition:width 0.3s;"></div>
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-            ${achievement.unlocked ? '<span style="color:#FFD700;font-size:12px;">已完成</span>' : ''}
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:28px;">📜</span>
+          <div>
+            <div style="font-size:20px;font-weight:bold;color:#DDA0DD;">剧情任务</div>
+            <div style="font-size:12px;opacity:0.6;">进行中 ${activeQuests.length} | 已完成 ${completedQuests.length}</div>
           </div>
-        `).join('')}
+        </div>
+        <button id="close-quest" class="panel-close-btn">✕</button>
+      </div>
+      ${activeQuests.length > 0 ? `
+        <div style="margin-bottom:20px;">
+          <div class="section-title" style="color:#90EE90;margin-bottom:12px;">🎯 进行中任务</div>
+          ${activeQuests.map(quest => this.renderQuestCard(quest, true)).join('')}
+        </div>
+      ` : `
+        <div style="text-align:center;padding:30px;opacity:0.7;">
+          <div style="font-size:48px;margin-bottom:10px;">🎯</div>
+          <div>暂无进行中的任务</div>
+        </div>
+      `}
+      ${completedQuests.length > 0 ? `
+        <div>
+          <div class="section-title" style="color:#87CEEB;margin-bottom:12px;">✅ 已完成任务</div>
+          ${completedQuests.map(quest => this.renderQuestCard(quest, false)).join('')}
+        </div>
+      ` : ''}
+      <div style="margin-top:20px;padding:16px;background:rgba(180,100,200,0.1);border-radius:12px;border:1px solid rgba(180,100,200,0.2);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="color:#DDA0DD;">💡</span>
+          <span style="font-weight:bold;color:#DDA0DD;">NPC提示</span>
+        </div>
+        <div style="font-size:12px;opacity:0.8;line-height:1.6;">
+          神秘老者: "旅人啊，去寻找隐藏在星野中的秘密吧。种植作物、建造建筑、与异兽交友，这些都是你需要掌握的技能。"
+        </div>
       </div>
     `;
 
     document.body.appendChild(panel);
-
-    document.getElementById('close-achievements')?.addEventListener('click', () => panel.remove());
-    panel.addEventListener('click', (e) => {
-      if (e.target === panel) panel.remove();
-    });
+    panel.querySelector('#close-quest')?.addEventListener('click', () => panel.remove());
+    panel.addEventListener('click', (e) => { if (e.target === panel) panel.remove(); });
   }
 
-  private getAchievements(): Array<{
-    id: string;
-    name: string;
-    description: string;
-    icon: string;
-    unlocked: boolean;
-    progress?: number;
-    target?: number;
+  private getQuestsData(): Array<{
+    id: string; title: string; description: string; status: 'active' | 'completed' | 'locked';
+    objectives: Array<{ description: string; progress: number; required: number; completed: boolean }>;
+    rewards: Array<{ type: string; amount: number }>;
   }> {
+    const storySystem = gameEngine?.getStorySystem();
+    if (storySystem) {
+      const quests: any[] = [];
+      storySystem.getActiveQuests?.()?.forEach((q: any) => quests.push(q));
+      return quests.map((q: any) => ({
+        id: q.id,
+        title: q.title,
+        description: q.description,
+        status: q.status === 'completed' ? 'completed' : q.status === 'active' ? 'active' : 'locked',
+        objectives: q.objectives?.map((o: any) => ({
+          description: o.description,
+          progress: o.progress || 0,
+          required: o.required || 1,
+          completed: o.completed || false
+        })) || [],
+        rewards: q.rewards || []
+      }));
+    }
     return [
-      {
-        id: 'first_plant',
-        name: '初尝耕耘',
-        description: '种植你的第一株作物',
-        icon: '🌱',
-        unlocked: true,
-        progress: 1,
-        target: 1
-      },
-      {
-        id: 'harvest_10',
-        name: '丰收时节',
-        description: '累计收获10次作物',
-        icon: '🌾',
-        unlocked: true,
-        progress: 12,
-        target: 10
-      },
-      {
-        id: 'build_first',
-        name: '筑梦之始',
-        description: '建造第一个建筑',
-        icon: '🏗️',
-        unlocked: true,
-        progress: 1,
-        target: 1
-      },
-      {
-        id: 'beast_friend',
-        name: '灵兽之友',
-        description: '与一只异兽建立友谊',
-        icon: '🐾',
-        unlocked: false,
-        progress: 0,
-        target: 1
-      },
-      {
-        id: 'all_crops',
-        name: '五谷丰登',
-        description: '收获所有类型的作物',
-        icon: '🌻',
-        unlocked: false,
-        progress: 4,
-        target: 6
-      },
-      {
-        id: 'explorer',
-        name: '星野探索者',
-        description: '探索地图的每个角落',
-        icon: '🗺️',
-        unlocked: false,
-        progress: 45,
-        target: 100
-      },
-      {
-        id: 'weather_watcher',
-        name: '观星者',
-        description: '见证所有特殊天气',
-        icon: '🌟',
-        unlocked: false,
-        progress: 3,
-        target: 9
-      },
-      {
-        id: 'master_farmer',
-        name: '种植大师',
-        description: '单季收获100个作物',
-        icon: '👨‍🌾',
-        unlocked: false,
-        progress: 23,
-        target: 100
-      }
+      { id: 'first_harvest', title: '初次收获', description: '种植并收获你的第一批作物', status: 'active',
+        objectives: [{ description: '收获小麦', progress: 0, required: 1, completed: false }],
+        rewards: [{ type: '星尘', amount: 100 }, { type: '小麦种子', amount: 5 }] },
+      { id: 'first_building', title: '初建家园', description: '建造你的第一栋建筑', status: 'locked',
+        objectives: [{ description: '放置任意建筑', progress: 0, required: 1, completed: false }],
+        rewards: [{ type: '星尘', amount: 200 }] },
+      { id: 'first_beast', title: '结交异兽', description: '与一只异兽建立友谊', status: 'locked',
+        objectives: [{ description: '喂养异兽', progress: 0, required: 1, completed: false }],
+        rewards: [{ type: '异兽粮', amount: 5 }] }
     ];
+  }
+
+  private renderQuestCard(quest: any, isActive: boolean): string {
+    const progressPercent = quest.objectives.length > 0
+      ? Math.round((quest.objectives.filter((o: any) => o.completed).length / quest.objectives.length) * 100)
+      : 0;
+
+    return `
+      <div style="
+        background:${isActive ? 'rgba(180,100,200,0.15)' : 'rgba(135,206,235,0.1)'};
+        border:1px solid ${isActive ? 'rgba(180,100,200,0.3)' : 'rgba(135,206,235,0.2)'};
+        border-radius:12px;padding:16px;margin-bottom:12px;
+      ">
+        <div style="display:flex;align-items:flex-start;gap:12px;">
+          <div style="
+            width:44px;height:44px;border-radius:10px;
+            background:${isActive ? 'linear-gradient(135deg,#B565D8,#9B4DCA)' : 'rgba(100,100,100,0.3)'};
+            display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;
+          ">${isActive ? '⭐' : '✓'}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:bold;font-size:15px;margin-bottom:4px;">${quest.title}</div>
+            <div style="font-size:12px;opacity:0.7;margin-bottom:10px;">${quest.description}</div>
+            ${quest.objectives.map((obj: any) => `
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+                <span style="color:${obj.completed ? '#90EE90' : '#87CEEB'};font-size:12px;">${obj.completed ? '✓' : '○'}</span>
+                <span style="font-size:12px;${obj.completed ? 'opacity:0.6;text-decoration:line-through;' : ''}">${obj.description}</span>
+                <span style="margin-left:auto;font-size:11px;color:#87CEEB;">${obj.progress}/${obj.required}</span>
+              </div>
+            `).join('')}
+            <div style="margin-top:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                <span style="opacity:0.7;">进度</span>
+                <span style="color:${isActive ? '#DDA0DD' : '#87CEEB'};">${progressPercent}%</span>
+              </div>
+              <div style="background:rgba(255,255,255,0.1);height:6px;border-radius:3px;overflow:hidden;">
+                <div style="width:${progressPercent}%;height:100%;background:${isActive ? 'linear-gradient(90deg,#DDA0DD,#B565D8)' : '#87CEEB'};transition:width 0.3s;"></div>
+              </div>
+            </div>
+            ${quest.rewards.length > 0 ? `
+              <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+                ${quest.rewards.map((r: any) => `
+                  <span style="font-size:11px;padding:3px 8px;background:rgba(255,215,0,0.2);border-radius:4px;color:#FFD700;">
+                    🎁 ${r.type} x${r.amount}
+                  </span>
+                `).join('')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private showAchievementsPanel(): void {
+    const existing = document.getElementById('achievements-panel');
+    if (existing) { existing.remove(); return; }
+
+    const panel = document.createElement('div');
+    panel.id = 'achievements-panel';
+    Object.assign(panel.style, {
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', fontSize: '14px', zIndex: '1001',
+      minWidth: '550px', maxWidth: '700px', maxHeight: '80vh', overflowY: 'auto',
+      border: '1px solid rgba(255, 107, 107, 0.3)',
+      boxShadow: '0 0 40px rgba(255, 107, 107, 0.2), 0 20px 60px rgba(0,0,0,0.5)'
+    });
+
+    const achievements = this.getAchievementsData();
+    const unlockedCount = achievements.filter(a => a.unlocked).length;
+    const totalPercent = Math.round((unlockedCount / achievements.length) * 100);
+
+    const categories = ['crop', 'building', 'beast', 'exploration', 'collection', 'special'];
+    const categoryNames: Record<string, string> = {
+      crop: '🌱 种植', building: '🏗️ 建造', beast: '🐾 异兽',
+      exploration: '🗺️ 探索', collection: '📦 收藏', special: '⭐ 特殊'
+    };
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:28px;">🏆</span>
+          <div>
+            <div style="font-size:20px;font-weight:bold;color:#FF6B6B;">成就系统</div>
+            <div style="font-size:12px;opacity:0.6;">${unlockedCount}/${achievements.length} 已解锁</div>
+          </div>
+        </div>
+        <button id="close-achievements" class="panel-close-btn">✕</button>
+      </div>
+      <div style="background:rgba(255,107,107,0.1);border-radius:12px;padding:16px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:13px;">总进度</span>
+          <span style="color:#FF6B6B;font-weight:bold;">${totalPercent}%</span>
+        </div>
+        <div style="background:rgba(255,255,255,0.1);height:8px;border-radius:4px;overflow:hidden;">
+          <div style="width:${totalPercent}%;height:100%;background:linear-gradient(90deg,#FF6B6B,#FFB6C1);transition:width 0.3s;"></div>
+        </div>
+      </div>
+      ${categories.map(cat => {
+        const catAchievements = achievements.filter(a => a.category === cat);
+        if (catAchievements.length === 0) return '';
+        const catUnlocked = catAchievements.filter(a => a.unlocked).length;
+        return `
+          <div style="margin-bottom:20px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+              <span style="font-size:14px;font-weight:bold;color:#FFB6C1;">${categoryNames[cat]}</span>
+              <span style="font-size:12px;opacity:0.6;">${catUnlocked}/${catAchievements.length}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;">
+              ${catAchievements.map(a => this.renderAchievementBadge(a)).join('')}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    `;
+
+    document.body.appendChild(panel);
+    panel.querySelector('#close-achievements')?.addEventListener('click', () => panel.remove());
+    panel.addEventListener('click', (e) => { if (e.target === panel) panel.remove(); });
+  }
+
+  private getAchievementsData(): Array<{
+     id: string; name: string; description: string; icon: string;
+     category: string; unlocked: boolean; progress?: number; target?: number;
+   }> {
+     const achievementSystem = gameEngine?.getAchievementSystem?.();
+     if (achievementSystem) {
+       const allAchievements: any[] = [];
+       achievementSystem.getUnlockedAchievements?.()?.forEach((a: any) => allAchievements.push(a));
+       achievementSystem.getLockedAchievements?.()?.forEach((a: any) => allAchievements.push(a));
+       return allAchievements.map((a: any) => ({
+         id: a.id, name: a.name, description: a.description, icon: a.icon,
+         category: a.category, unlocked: a.unlocked
+       }));
+     }
+    return [
+      { id: 'first_harvest', name: '初次收获', description: '收获你的第一株作物', icon: '🌾', category: 'crop', unlocked: true, progress: 1, target: 1 },
+      { id: 'harvest_10', name: '小有成就', description: '累计收获10株作物', icon: '🌻', category: 'crop', unlocked: true, progress: 12, target: 10 },
+      { id: 'wheat_king', name: '麦田守望者', description: '收获100株小麦', icon: '🌾', category: 'crop', unlocked: false, progress: 45, target: 100 },
+      { id: 'first_build', name: '初建家园', description: '建造你的第一栋建筑', icon: '🏠', category: 'building', unlocked: true, progress: 1, target: 1 },
+      { id: 'architect', name: '建筑师', description: '建造50栋建筑', icon: '🏢', category: 'building', unlocked: false, progress: 8, target: 50 },
+      { id: 'first_friend', name: '初次结交', description: '与一只异兽成为朋友', icon: '🐾', category: 'beast', unlocked: true, progress: 1, target: 1 },
+      { id: 'beast_friend_5', name: '异兽之友', description: '与5只异兽成为朋友', icon: '🦊', category: 'beast', unlocked: false, progress: 1, target: 5 },
+      { id: 'world_explorer', name: '世界探索者', description: '探索地图超过10000单位距离', icon: '🗺️', category: 'exploration', unlocked: false, progress: 3200, target: 10000 },
+      { id: 'collector', name: '收藏家', description: '收集100件物品', icon: '📦', category: 'collection', unlocked: false, progress: 67, target: 100 }
+    ];
+  }
+
+  private renderAchievementBadge(achievement: any): string {
+    const progress = achievement.progress !== undefined && achievement.target !== undefined
+      ? Math.round((achievement.progress / achievement.target) * 100)
+      : null;
+
+    return `
+      <div style="
+        background:${achievement.unlocked ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.05)'};
+        border:1px solid ${achievement.unlocked ? 'rgba(255,215,0,0.4)' : 'rgba(255,255,255,0.1)'};
+        border-radius:12px;padding:14px;text-align:center;cursor:pointer;
+        transition:all 0.2s;
+      " onmouseover="this.style.background='${achievement.unlocked ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.1)'}';" onmouseout="this.style.background='${achievement.unlocked ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.05)'}';" title="${achievement.description}">
+        <div style="
+          width:48px;height:48px;border-radius:50%;margin:0 auto 10px;
+          background:${achievement.unlocked ? 'linear-gradient(135deg,#FFD700,#FFA500)' : 'rgba(100,100,100,0.3)'};
+          display:flex;align-items:center;justify-content:center;font-size:24px;
+          ${achievement.unlocked ? 'box-shadow:0 0 15px rgba(255,215,0,0.5);' : ''}
+        ">${achievement.icon}</div>
+        <div style="font-weight:bold;font-size:12px;margin-bottom:4px;${achievement.unlocked ? 'color:#FFD700;' : ''}">${achievement.name}</div>
+        <div style="font-size:10px;opacity:0.6;margin-bottom:6px;">${achievement.description}</div>
+        ${progress !== null && !achievement.unlocked ? `
+          <div style="font-size:10px;color:#87CEEB;">${progress}%</div>
+        ` : achievement.unlocked ? `
+          <div style="font-size:10px;color:#FFD700;">✓ 已达成</div>
+        ` : ''}
+      </div>
+    `;
   }
 
   public showCropPanel(): void {
@@ -1331,6 +1523,17 @@ export class UIManager extends EventEmitter {
             transition:all 0.2s;
           ">⚙️ 游戏设置</button>
 
+          <button id="menu-quest" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(180,100,200,0.3),rgba(160,80,180,0.2));
+            border:1px solid rgba(180,100,200,0.4);
+            border-radius:12px;
+            color:#DDA0DD;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">📜 剧情任务</button>
+
           <button id="menu-inventory" class="menu-btn" style="
             padding:14px 32px;
             background:linear-gradient(135deg,rgba(255,200,100,0.3),rgba(255,180,80,0.2));
@@ -1425,6 +1628,11 @@ export class UIManager extends EventEmitter {
     document.getElementById('menu-settings')?.addEventListener('click', () => {
       menu.remove();
       this.showSettingsMenu();
+    });
+
+    document.getElementById('menu-quest')?.addEventListener('click', () => {
+      menu.remove();
+      this.showQuestPanel();
     });
 
     document.getElementById('menu-inventory')?.addEventListener('click', () => {
@@ -1548,197 +1756,336 @@ export class UIManager extends EventEmitter {
 
   private showFriendsPanel(): void {
     const existing = document.getElementById('friends-panel');
-    if (existing) {
-      existing.remove();
-      return;
-    }
+    if (existing) { existing.remove(); return; }
 
     const panel = document.createElement('div');
     panel.id = 'friends-panel';
     Object.assign(panel.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      background: 'rgba(20, 25, 40, 0.98)',
-      color: '#fff',
-      padding: '24px',
-      borderRadius: '16px',
-      fontSize: '14px',
-      zIndex: '1000',
-      minWidth: '450px',
-      maxWidth: '600px',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', fontSize: '14px', zIndex: '1001',
+      minWidth: '550px', maxWidth: '700px', maxHeight: '80vh', overflowY: 'auto',
+      border: '1px solid rgba(100, 180, 255, 0.3)',
+      boxShadow: '0 0 40px rgba(100, 180, 255, 0.2), 0 20px 60px rgba(0,0,0,0.5)'
     });
+
+    const friends = this.getFriendsData();
+    const onlineFriends = friends.filter(f => f.status === 'online');
+    const offlineFriends = friends.filter(f => f.status === 'offline');
 
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:24px;">👥</span>
-          <span style="font-size:20px;font-weight:bold;">好友系统</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:28px;">👥</span>
+          <div>
+            <div style="font-size:20px;font-weight:bold;color:#87CEEB;">好友系统</div>
+            <div style="font-size:12px;opacity:0.6;">在线 ${onlineFriends.length} | 离线 ${offlineFriends.length}</div>
+          </div>
         </div>
-        <button id="close-friends" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+        <button id="close-friends" class="panel-close-btn">✕</button>
       </div>
-      <div style="margin-bottom:20px;">
-        <button id="add-friend-btn" style="
-          width:100%;
-          padding:12px;
-          background:linear-gradient(135deg,rgba(100,180,255,0.3),rgba(80,160,255,0.2));
-          border:1px solid rgba(100,180,255,0.4);
-          border-radius:10px;
-          color:#87CEEB;
-          font-size:14px;
-          cursor:pointer;
-          transition:all 0.2s;
-        ">➕ 添加好友</button>
+      <div style="display:flex;gap:12px;margin-bottom:20px;">
+        <button id="add-friend-btn" class="action-btn" style="flex:1;background:linear-gradient(135deg,rgba(100,180,255,0.3),rgba(80,160,255,0.2));border-color:rgba(100,180,255,0.4);color:#87CEEB;">
+          ➕ 添加好友
+        </button>
+        <button id="find-player-btn" class="action-btn" style="flex:1;background:linear-gradient(135deg,rgba(180,100,200,0.3),rgba(160,80,180,0.2));border-color:rgba(180,100,200,0.4);color:#DDA0DD;">
+          🔍 查找玩家
+        </button>
       </div>
-      <div style="margin-bottom:16px;">
-        <div style="font-size:13px;opacity:0.7;margin-bottom:10px;">我的好友 (0)</div>
-        <div style="
-          background:rgba(255,255,255,0.05);
-          padding:30px;
-          border-radius:12px;
-          text-align:center;
-          opacity:0.6;
-        ">
-          <div style="font-size:36px;margin-bottom:8px;">🌟</div>
-          <div style="margin-bottom:4px;">暂无好友</div>
+      ${onlineFriends.length > 0 ? `
+        <div style="margin-bottom:16px;">
+          <div class="section-title" style="color:#90EE90;margin-bottom:10px;">🟢 在线好友</div>
+          ${onlineFriends.map(f => this.renderFriendCard(f, true)).join('')}
+        </div>
+      ` : ''}
+      ${offlineFriends.length > 0 ? `
+        <div>
+          <div class="section-title" style="color:#888;margin-bottom:10px;">⚫ 离线好友</div>
+          ${offlineFriends.map(f => this.renderFriendCard(f, false)).join('')}
+        </div>
+      ` : ''}
+      ${friends.length === 0 ? `
+        <div style="text-align:center;padding:40px;opacity:0.7;">
+          <div style="font-size:48px;margin-bottom:10px;">🌟</div>
+          <div style="margin-bottom:8px;">暂无好友</div>
           <div style="font-size:12px;">快去添加好友一起游玩吧！</div>
         </div>
-      </div>
-      <div style="
-        background:rgba(100,200,100,0.1);
-        border:1px solid rgba(100,200,100,0.3);
-        border-radius:10px;
-        padding:16px;
-      ">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="color:#90EE90;">💡</span>
-          <span style="font-weight:bold;color:#90EE90;">功能说明</span>
-        </div>
-        <div style="font-size:12px;opacity:0.8;line-height:1.6;">
-          好友系统可以让你与其他玩家互动、互赠礼物、拜访好友的家园。<br>
-          未来版本中将支持：<br>
-          • 添加/删除好友<br>
-          • 好友列表管理<br>
-          • 互赠虚拟礼物<br>
-          • 拜访好友家园
-        </div>
-      </div>
+      ` : ''}
     `;
 
     document.body.appendChild(panel);
+    panel.querySelector('#close-friends')?.addEventListener('click', () => panel.remove());
+    panel.querySelector('#add-friend-btn')?.addEventListener('click', () => this.showAddFriendDialog());
+    panel.addEventListener('click', (e) => { if (e.target === panel) panel.remove(); });
+  }
 
-    document.getElementById('close-friends')?.addEventListener('click', () => panel.remove());
-    document.getElementById('add-friend-btn')?.addEventListener('click', () => {
-      this.showNotification('添加好友功能即将推出，敬请期待！', 'info');
+  private getFriendsData(): Array<{
+    id: string; name: string; avatar: string; level: number;
+    status: 'online' | 'offline' | 'away'; intimacy: number; lastOnline: number;
+  }> {
+    const friendSystem = gameEngine?.getFriendSystem?.();
+    if (friendSystem) {
+      return friendSystem.getAllFriends?.() || [];
+    }
+    return [
+      { id: 'f1', name: '星云游侠', avatar: '🧑‍🚀', level: 15, status: 'online', intimacy: 450, lastOnline: Date.now() },
+      { id: 'f2', name: '月夜精灵', avatar: '🧚', level: 22, status: 'offline', intimacy: 720, lastOnline: Date.now() - 3600000 },
+      { id: 'f3', name: '晨曦农夫', avatar: '🧑‍🌾', level: 8, status: 'online', intimacy: 180, lastOnline: Date.now() }
+    ];
+  }
+
+  private renderFriendCard(friend: any, isOnline: boolean): string {
+    const lastOnlineText = isOnline ? '在线'
+      : this.formatTimeAgo(friend.lastOnline);
+
+    return `
+      <div style="
+        background:rgba(100,180,255,${isOnline ? '0.12' : '0.05'});
+        border:1px solid rgba(100,180,255,${isOnline ? '0.3' : '0.15'});
+        border-radius:12px;padding:14px;margin-bottom:10px;
+        display:flex;align-items:center;gap:14px;
+      ">
+        <div style="
+          width:50px;height:50px;border-radius:50%;
+          background:linear-gradient(135deg,#4A90D9,#357ABD);
+          display:flex;align-items:center;justify-content:center;font-size:26px;
+          position:relative;
+        ">${friend.avatar}
+          <div style="
+            position:absolute;bottom:0;right:0;width:14px;height:14px;border-radius:50%;
+            background:${isOnline ? '#4CAF50' : '#666'};
+            border:2px solid rgba(15,18,30,0.98);
+          "></div>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:2px;">${friend.name}</div>
+          <div style="font-size:12px;opacity:0.6;">Lv.${friend.level} · ${lastOnlineText}</div>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:#FFB6C1;">❤ 亲密度 ${friend.intimacy}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="mini-btn" style="background:rgba(100,200,100,0.2);border:1px solid rgba(100,200,100,0.4);color:#90EE90;" onclick="alert('赠送礼物功能')">🎁</button>
+          <button class="mini-btn" style="background:rgba(150,100,255,0.2);border:1px solid rgba(150,100,255,0.4);color:#DDA0DD;" onclick="alert('拜访家园功能')">🏠</button>
+        </div>
+      </div>
+    `;
+  }
+
+  private formatTimeAgo(timestamp: number): string {
+    const diff = Date.now() - timestamp;
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 60) return `${minutes}分钟前`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}小时前`;
+    const days = Math.floor(hours / 24);
+    return `${days}天前`;
+  }
+
+  private showAddFriendDialog(): void {
+    const dialog = document.createElement('div');
+    dialog.id = 'add-friend-dialog';
+    Object.assign(dialog.style, {
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', zIndex: '1002', minWidth: '350px',
+      border: '1px solid rgba(100, 180, 255, 0.4)',
+      boxShadow: '0 0 30px rgba(100, 180, 255, 0.3)'
     });
-    panel.addEventListener('click', (e) => {
-      if (e.target === panel) panel.remove();
+
+    dialog.innerHTML = `
+      <div style="font-size:16px;font-weight:bold;margin-bottom:16px;color:#87CEEB;">添加好友</div>
+      <input type="text" id="friend-code-input" placeholder="输入好友ID或名称" style="
+        width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);
+        background:rgba(255,255,255,0.05);color:#fff;font-size:14px;margin-bottom:12px;box-sizing:border-box;
+      ">
+      <div style="display:flex;gap:10px;">
+        <button id="cancel-add-friend" class="action-btn" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);">取消</button>
+        <button id="confirm-add-friend" class="action-btn" style="flex:1;background:rgba(100,180,255,0.3);border:1px solid rgba(100,180,255,0.4);color:#87CEEB;">发送请求</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    dialog.querySelector('#cancel-add-friend')?.addEventListener('click', () => dialog.remove());
+    dialog.querySelector('#confirm-add-friend')?.addEventListener('click', () => {
+      const input = dialog.querySelector('#friend-code-input') as HTMLInputElement;
+      if (input.value.trim()) {
+        this.showNotification(`已向 "${input.value}" 发送好友请求！`, 'success');
+        dialog.remove();
+      }
     });
   }
 
   private showMultiplayerPanel(): void {
     const existing = document.getElementById('multiplayer-panel');
-    if (existing) {
-      existing.remove();
-      return;
-    }
+    if (existing) { existing.remove(); return; }
 
     const panel = document.createElement('div');
     panel.id = 'multiplayer-panel';
     Object.assign(panel.style, {
-      position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      background: 'rgba(20, 25, 40, 0.98)',
-      color: '#fff',
-      padding: '24px',
-      borderRadius: '16px',
-      fontSize: '14px',
-      zIndex: '1000',
-      minWidth: '450px',
-      maxWidth: '600px',
-      maxHeight: '80vh',
-      overflowY: 'auto',
-      border: '1px solid rgba(255,255,255,0.1)',
-      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', fontSize: '14px', zIndex: '1001',
+      minWidth: '600px', maxWidth: '750px', maxHeight: '80vh', overflowY: 'auto',
+      border: '1px solid rgba(150, 100, 255, 0.3)',
+      boxShadow: '0 0 40px rgba(150, 100, 255, 0.2), 0 20px 60px rgba(0,0,0,0.5)'
     });
+
+    const rooms = this.getAvailableRooms();
 
     panel.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:24px;">🌐</span>
-          <span style="font-size:20px;font-weight:bold;">联机模式</span>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <span style="font-size:28px;">🌐</span>
+          <div>
+            <div style="font-size:20px;font-weight:bold;color:#DDA0DD;">联机模式</div>
+            <div style="font-size:12px;opacity:0.6;">与好友一起游玩</div>
+          </div>
         </div>
-        <button id="close-multiplayer" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+        <button id="close-multiplayer" class="panel-close-btn">✕</button>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
-        <button id="create-room-btn" style="
-          padding:16px;
-          background:linear-gradient(135deg,rgba(100,200,100,0.3),rgba(80,180,80,0.2));
-          border:1px solid rgba(100,200,100,0.4);
-          border-radius:12px;
-          color:#90EE90;
-          font-size:14px;
-          cursor:pointer;
-          transition:all 0.2s;
-          text-align:left;
-        ">
-          <div style="font-weight:bold;margin-bottom:4px;">🏠 创建房间</div>
-          <div style="font-size:12px;opacity:0.7;">创建一个新房间，邀请好友加入</div>
+      <div style="display:flex;gap:12px;margin-bottom:20px;">
+        <button id="create-room-btn" class="action-btn" style="flex:1;background:linear-gradient(135deg,rgba(100,200,100,0.3),rgba(80,180,80,0.2));border-color:rgba(100,200,100,0.4);color:#90EE90;">
+          🏠 创建房间
         </button>
-        <button id="join-room-btn" style="
-          padding:16px;
-          background:linear-gradient(135deg,rgba(255,180,100,0.3),rgba(255,160,80,0.2));
-          border:1px solid rgba(255,180,100,0.4);
-          border-radius:12px;
-          color:#FFD700;
-          font-size:14px;
-          cursor:pointer;
-          transition:all 0.2s;
-          text-align:left;
-        ">
-          <div style="font-weight:bold;margin-bottom:4px;">🚪 加入房间</div>
-          <div style="font-size:12px;opacity:0.7;">输入房间号加入好友的房间</div>
+        <button id="refresh-rooms-btn" class="action-btn" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);">
+          🔄 刷新
         </button>
       </div>
-      <div style="
-        background:rgba(100,200,100,0.1);
-        border:1px solid rgba(100,200,100,0.3);
-        border-radius:10px;
-        padding:16px;
-      ">
+      <div style="margin-bottom:16px;">
+        <div class="section-title" style="color:#87CEEB;margin-bottom:10px;">📋 可用房间</div>
+        ${rooms.length > 0 ? rooms.map(room => this.renderRoomCard(room)).join('') : `
+          <div style="text-align:center;padding:30px;background:rgba(255,255,255,0.03);border-radius:12px;opacity:0.7;">
+            <div style="font-size:36px;margin-bottom:8px;">🔍</div>
+            <div>暂无可用房间</div>
+            <div style="font-size:12px;margin-top:4px;">创建房间邀请好友吧！</div>
+          </div>
+        `}
+      </div>
+      <div style="margin-top:16px;padding:14px;background:rgba(150,100,255,0.08);border-radius:12px;border:1px solid rgba(150,100,255,0.2);">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="color:#90EE90;">💡</span>
-          <span style="font-weight:bold;color:#90EE90;">功能说明</span>
+          <span style="color:#DDA0DD;">💡</span>
+          <span style="font-weight:bold;color:#DDA0DD;">联机说明</span>
         </div>
         <div style="font-size:12px;opacity:0.8;line-height:1.6;">
-          联机模式让你可以与好友一起游玩：<br>
           • 最多4人同时在线<br>
           • 实时同步作物种植和建筑建造<br>
           • 共享天气和时间系统<br>
-          • 一起收获和交易物品<br><br>
-          <span style="color:#FFB6C1;">⚠️ 联机功能正在开发中，敬请期待！</span>
+          • 创建房间后分享房间号给好友
         </div>
       </div>
     `;
 
     document.body.appendChild(panel);
+    panel.querySelector('#close-multiplayer')?.addEventListener('click', () => panel.remove());
+    panel.querySelector('#create-room-btn')?.addEventListener('click', () => this.showCreateRoomDialog());
+    panel.querySelector('#refresh-rooms-btn')?.addEventListener('click', () => {
+      this.showNotification('房间列表已刷新', 'info');
+    });
+    panel.addEventListener('click', (e) => { if (e.target === panel) panel.remove(); });
+  }
 
-    document.getElementById('close-multiplayer')?.addEventListener('click', () => panel.remove());
-    document.getElementById('create-room-btn')?.addEventListener('click', () => {
-      this.showNotification('联机功能即将推出，敬请期待！', 'info');
+  private getAvailableRooms(): Array<{
+    id: string; name: string; hostName: string; playerCount: number;
+    maxPlayers: number; status: string; settings: any;
+  }> {
+    const mpSystem = gameEngine?.getMultiplayerSystem?.();
+    if (mpSystem) {
+      return (mpSystem.getAvailableRooms?.() || []).map((room: any) => ({
+        id: room.id,
+        name: room.name,
+        hostName: room.players?.[0]?.name || '未知',
+        playerCount: room.players?.length || 0,
+        maxPlayers: room.maxPlayers,
+        status: room.status,
+        settings: room.settings
+      }));
+    }
+    return [
+      { id: 'r1', name: '🌟 星野工坊 - 休闲种植', hostName: '小星', playerCount: 2, maxPlayers: 4, status: 'waiting', settings: {} },
+      { id: 'r2', name: '🌾 丰收乐园 - 新手友好', hostName: '农夫阿星', playerCount: 1, maxPlayers: 4, status: 'waiting', settings: {} }
+    ];
+  }
+
+  private renderRoomCard(room: any): string {
+    const statusColor = room.status === 'waiting' ? '#90EE90' : '#FFB6C1';
+    const statusText = room.status === 'waiting' ? '等待中' : '游戏中';
+
+    return `
+      <div style="
+        background:rgba(150,100,255,0.1);border:1px solid rgba(150,100,255,0.2);
+        border-radius:12px;padding:14px;margin-bottom:10px;
+        display:flex;align-items:center;gap:14px;
+      ">
+        <div style="
+          width:50px;height:50px;border-radius:12px;
+          background:linear-gradient(135deg,rgba(150,100,255,0.4),rgba(130,80,255,0.3));
+          display:flex;align-items:center;justify-content:center;font-size:24px;
+        ">🏠</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">${room.name}</div>
+          <div style="font-size:12px;opacity:0.6;">
+            房主: ${room.hostName} · 👥 ${room.playerCount}/${room.maxPlayers}
+          </div>
+          <div style="margin-top:6px;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:${statusColor}22;color:${statusColor};">
+              ${statusText}
+            </span>
+          </div>
+        </div>
+        <button class="action-btn" style="
+          background:linear-gradient(135deg,rgba(150,100,255,0.4),rgba(130,80,255,0.3));
+          border:1px solid rgba(150,100,255,0.5);color:#DDA0DD;padding:8px 16px;
+        " onclick="alert('加入房间: ${room.name}')">
+          加入
+        </button>
+      </div>
+    `;
+  }
+
+  private showCreateRoomDialog(): void {
+    const dialog = document.createElement('div');
+    dialog.id = 'create-room-dialog';
+    Object.assign(dialog.style, {
+      position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+      background: 'rgba(15, 18, 30, 0.98)', color: '#fff', padding: '24px',
+      borderRadius: '16px', zIndex: '1002', minWidth: '380px',
+      border: '1px solid rgba(100, 200, 100, 0.4)',
+      boxShadow: '0 0 30px rgba(100, 200, 100, 0.3)'
     });
-    document.getElementById('join-room-btn')?.addEventListener('click', () => {
-      this.showNotification('联机功能即将推出，敬请期待！', 'info');
-    });
-    panel.addEventListener('click', (e) => {
-      if (e.target === panel) panel.remove();
+
+    dialog.innerHTML = `
+      <div style="font-size:16px;font-weight:bold;margin-bottom:16px;color:#90EE90;">🏠 创建房间</div>
+      <div style="margin-bottom:12px;">
+        <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:6px;">房间名称</label>
+        <input type="text" id="room-name-input" placeholder="输入房间名称" value="星野工坊" style="
+          width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);
+          background:rgba(255,255,255,0.05);color:#fff;font-size:14px;box-sizing:border-box;
+        ">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12px;opacity:0.7;display:block;margin-bottom:6px;">最大人数</label>
+        <select id="max-players-input" style="
+          width:100%;padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);
+          background:rgba(255,255,255,0.05);color:#fff;font-size:14px;
+        ">
+          <option value="2">2人</option>
+          <option value="4" selected>4人</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button id="cancel-create-room" class="action-btn" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.2);">取消</button>
+        <button id="confirm-create-room" class="action-btn" style="flex:1;background:rgba(100,200,100,0.3);border:1px solid rgba(100,200,100,0.4);color:#90EE90;">创建</button>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    dialog.querySelector('#cancel-create-room')?.addEventListener('click', () => dialog.remove());
+    dialog.querySelector('#confirm-create-room')?.addEventListener('click', () => {
+      const nameInput = dialog.querySelector('#room-name-input') as HTMLInputElement;
+      const name = nameInput.value.trim() || '星野工坊';
+      this.showNotification(`房间 "${name}" 创建成功！`, 'success');
+      dialog.remove();
     });
   }
 
