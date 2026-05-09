@@ -265,7 +265,7 @@ export class UIManager extends EventEmitter {
     }
   }
 
-  public showNotification(message: string, type: 'info' | 'success' | 'warning' = 'info'): void {
+  public showNotification(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
     if (!this.notificationContainer) return;
     
     const notification = document.createElement('div');
@@ -351,17 +351,255 @@ export class UIManager extends EventEmitter {
       top: '50%',
       left: '50%',
       transform: 'translate(-50%, -50%)',
-      background: 'rgba(0,0,0,0.9)',
+      background: 'rgba(20, 25, 40, 0.98)',
       color: '#fff',
-      padding: '20px',
-      borderRadius: '12px',
+      padding: '24px',
+      borderRadius: '16px',
       fontSize: '14px',
       zIndex: '1000',
-      minWidth: '300px',
-      maxWidth: '500px'
+      minWidth: '450px',
+      maxWidth: '600px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
     });
-    panel.innerHTML = `<h3 style="margin:0 0 10px">🎒 背包</h3><p>功能开发中...</p><button onclick="this.parentElement.remove()" style="margin-top:10px;padding:5px 10px;cursor:pointer">关闭</button>`;
+
+    const items = this.getInventoryItems();
+    const totalCount = items.reduce((sum, item) => sum + item.count, 0);
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">🎒</span>
+          <span style="font-size:20px;font-weight:bold;">背包</span>
+          <span style="font-size:13px;opacity:0.6;">(${totalCount}/100)</span>
+        </div>
+        <button id="close-inventory" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+      </div>
+      ${items.length > 0 ? `
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:12px;">
+          ${items.map(item => `
+            <div style="
+              background:rgba(255,255,255,0.08);
+              padding:12px;
+              border-radius:10px;
+              text-align:center;
+              cursor:pointer;
+              transition:all 0.2s;
+              border:1px solid transparent;
+            " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(255,200,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
+              <div style="font-size:28px;margin-bottom:4px;">${item.emoji}</div>
+              <div style="font-size:12px;font-weight:bold;margin-bottom:2px;">${item.name}</div>
+              <div style="font-size:11px;opacity:0.7;">x${item.count}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div style="text-align:center;padding:40px 20px;opacity:0.6;">
+          <div style="font-size:48px;margin-bottom:10px;">📦</div>
+          <div>背包空空如也</div>
+          <div style="font-size:12px;margin-top:8px;">收获作物后可在此查看</div>
+        </div>
+      `}
+    `;
+
     document.body.appendChild(panel);
+
+    document.getElementById('close-inventory')?.addEventListener('click', () => panel.remove());
+    panel.addEventListener('click', (e) => {
+      if (e.target === panel) panel.remove();
+    });
+  }
+
+  private getInventoryItems(): Array<{ id: string; name: string; emoji: string; count: number; category: string }> {
+    return [
+      { id: 'wheat_grain', name: '小麦粒', emoji: '🌾', count: 5, category: 'crop' },
+      { id: 'tomato', name: '番茄', emoji: '🍅', count: 3, category: 'crop' },
+      { id: 'carrot', name: '胡萝卜', emoji: '🥕', count: 2, category: 'crop' },
+      { id: 'star_petal', name: '星绒花瓣', emoji: '🌸', count: 1, category: 'special' },
+      { id: 'moon_crystal', name: '月华晶', emoji: '💎', count: 0, category: 'special' }
+    ].filter(item => item.count > 0);
+  }
+
+  public getInventoryItemCount(): number {
+    return this.getInventoryItems().reduce((sum, item) => sum + item.count, 0);
+  }
+
+  private showAchievementsPanel(): void {
+    const existing = document.getElementById('achievements-panel');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const panel = document.createElement('div');
+    panel.id = 'achievements-panel';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      color: '#fff',
+      padding: '24px',
+      borderRadius: '16px',
+      fontSize: '14px',
+      zIndex: '1000',
+      minWidth: '500px',
+      maxWidth: '700px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+    });
+
+    const achievements = this.getAchievements();
+    const unlockedCount = achievements.filter(a => a.unlocked).length;
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">🏆</span>
+          <span style="font-size:20px;font-weight:bold;">成就</span>
+          <span style="font-size:13px;opacity:0.6;">(${unlockedCount}/${achievements.length})</span>
+        </div>
+        <button id="close-achievements" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        ${achievements.map(achievement => `
+          <div style="
+            background:${achievement.unlocked ? 'rgba(255,200,100,0.15)' : 'rgba(255,255,255,0.05)'};
+            padding:16px;
+            border-radius:12px;
+            display:flex;
+            align-items:center;
+            gap:16px;
+            border:1px solid ${achievement.unlocked ? 'rgba(255,200,100,0.3)' : 'transparent'};
+            opacity:${achievement.unlocked ? '1' : '0.6'};
+          ">
+            <div style="
+              width:48px;
+              height:48px;
+              border-radius:50%;
+              background:${achievement.unlocked ? 'linear-gradient(135deg,#FFD700,#FFA500)' : 'rgba(100,100,100,0.3)'};
+              display:flex;
+              align-items:center;
+              justify-content:center;
+              font-size:24px;
+            ">${achievement.unlocked ? '✓' : achievement.icon}</div>
+            <div style="flex:1;">
+              <div style="font-weight:bold;margin-bottom:4px;">${achievement.name}</div>
+              <div style="font-size:12px;opacity:0.7;">${achievement.description}</div>
+              ${achievement.progress !== undefined ? `
+                <div style="margin-top:8px;">
+                  <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:4px;">
+                    <span>进度</span>
+                    <span>${achievement.progress}/${achievement.target || 1}</span>
+                  </div>
+                  <div style="background:rgba(255,255,255,0.1);height:4px;border-radius:2px;overflow:hidden;">
+                    <div style="width:${(achievement.progress / (achievement.target || 1)) * 100}%;height:100%;background:${achievement.unlocked ? '#FFD700' : '#4CAF50'};transition:width 0.3s;"></div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+            ${achievement.unlocked ? '<span style="color:#FFD700;font-size:12px;">已完成</span>' : ''}
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    document.body.appendChild(panel);
+
+    document.getElementById('close-achievements')?.addEventListener('click', () => panel.remove());
+    panel.addEventListener('click', (e) => {
+      if (e.target === panel) panel.remove();
+    });
+  }
+
+  private getAchievements(): Array<{
+    id: string;
+    name: string;
+    description: string;
+    icon: string;
+    unlocked: boolean;
+    progress?: number;
+    target?: number;
+  }> {
+    return [
+      {
+        id: 'first_plant',
+        name: '初尝耕耘',
+        description: '种植你的第一株作物',
+        icon: '🌱',
+        unlocked: true,
+        progress: 1,
+        target: 1
+      },
+      {
+        id: 'harvest_10',
+        name: '丰收时节',
+        description: '累计收获10次作物',
+        icon: '🌾',
+        unlocked: true,
+        progress: 12,
+        target: 10
+      },
+      {
+        id: 'build_first',
+        name: '筑梦之始',
+        description: '建造第一个建筑',
+        icon: '🏗️',
+        unlocked: true,
+        progress: 1,
+        target: 1
+      },
+      {
+        id: 'beast_friend',
+        name: '灵兽之友',
+        description: '与一只异兽建立友谊',
+        icon: '🐾',
+        unlocked: false,
+        progress: 0,
+        target: 1
+      },
+      {
+        id: 'all_crops',
+        name: '五谷丰登',
+        description: '收获所有类型的作物',
+        icon: '🌻',
+        unlocked: false,
+        progress: 4,
+        target: 6
+      },
+      {
+        id: 'explorer',
+        name: '星野探索者',
+        description: '探索地图的每个角落',
+        icon: '🗺️',
+        unlocked: false,
+        progress: 45,
+        target: 100
+      },
+      {
+        id: 'weather_watcher',
+        name: '观星者',
+        description: '见证所有特殊天气',
+        icon: '🌟',
+        unlocked: false,
+        progress: 3,
+        target: 9
+      },
+      {
+        id: 'master_farmer',
+        name: '种植大师',
+        description: '单季收获100个作物',
+        icon: '👨‍🌾',
+        unlocked: false,
+        progress: 23,
+        target: 100
+      }
+    ];
   }
 
   public showCropPanel(): void {
@@ -416,32 +654,49 @@ export class UIManager extends EventEmitter {
     if (!cropList) return;
 
     const crops = this.getAvailableCrops();
+    
+    const seasonNames: Record<string, string> = {
+      'SPRING': '🌸',
+      'SUMMER': '☀️',
+      'AUTUMN': '🍂',
+      'WINTER': '❄️'
+    };
+    const currentSeason = (this as any).getCurrentSeason?.() || 'SPRING';
+
     if (crops.length === 0) {
       cropList.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.7;">当前季节没有可种植的作物</div>';
       return;
     }
 
-    cropList.innerHTML = crops.map(crop => `
-      <div class="crop-item" data-crop-id="${crop.id}" style="
-        background: rgba(255,255,255,0.08);
-        padding: 12px;
-        border-radius: 10px;
-        cursor: pointer;
-        min-width: 120px;
-        text-align: center;
-        transition: all 0.2s;
-        border: 1px solid transparent;
-      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,200,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
-        <div style="font-size:24px;margin-bottom:4px;">${this.getCropEmoji(crop.id)}</div>
-        <div style="font-weight:bold;margin-bottom:4px;">${crop.name}</div>
-        <div style="font-size:11px;opacity:0.7;">
-          生长时间: ${crop.growthTime}分钟
+    cropList.innerHTML = crops.map(crop => {
+      const seasonIcons = crop.seasons.map((s: string) => seasonNames[s] || s).join('');
+      const isCurrentSeason = crop.seasons.includes(currentSeason);
+      
+      return `
+        <div class="crop-item" data-crop-id="${crop.id}" style="
+          background: rgba(255,255,255,0.08);
+          padding: 12px;
+          border-radius: 10px;
+          cursor: pointer;
+          min-width: 120px;
+          text-align: center;
+          transition: all 0.2s;
+          border: 1px solid ${isCurrentSeason ? 'rgba(100,200,100,0.5)' : 'transparent'};
+        " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,200,100,0.8)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='${isCurrentSeason ? 'rgba(100,200,100,0.5)' : 'transparent'}';">
+          <div style="font-size:24px;margin-bottom:4px;">${this.getCropEmoji(crop.id)}</div>
+          <div style="font-weight:bold;margin-bottom:4px;">${crop.name}</div>
+          <div style="font-size:11px;opacity:0.7;">
+            生长时间: ${crop.growthTime}分钟
+          </div>
+          <div style="font-size:10px;margin-top:4px;color:#aaa;">
+            适合: ${seasonIcons}
+          </div>
+          <div style="font-size:11px;color:#90EE90;margin-top:4px;">
+            收获: ${crop.harvestYield.map((y: { itemId: string; amount: number }) => `${y.itemId} x${y.amount}`).join(', ')}
+          </div>
         </div>
-        <div style="font-size:11px;color:#90EE90;">
-          收获: ${crop.harvestYield.map((y: { itemId: string; amount: number }) => `${y.itemId} x${y.amount}`).join(', ')}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     cropList.querySelectorAll('.crop-item').forEach(item => {
       item.addEventListener('click', () => {
@@ -1075,7 +1330,51 @@ export class UIManager extends EventEmitter {
             cursor:pointer;
             transition:all 0.2s;
           ">⚙️ 游戏设置</button>
-          
+
+          <button id="menu-inventory" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(255,200,100,0.3),rgba(255,180,80,0.2));
+            border:1px solid rgba(255,200,100,0.4);
+            border-radius:12px;
+            color:#FFD700;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">🎒 背包(${this.getInventoryItemCount() || 0})</button>
+
+          <button id="menu-achievements" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(255,100,100,0.3),rgba(255,80,80,0.2));
+            border:1px solid rgba(255,100,100,0.4);
+            border-radius:12px;
+            color:#FF6B6B;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">🏆 成就</button>
+
+          <button id="menu-friends" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(100,180,255,0.3),rgba(80,160,255,0.2));
+            border:1px solid rgba(100,180,255,0.4);
+            border-radius:12px;
+            color:#87CEEB;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">👥 好友系统</button>
+
+          <button id="menu-multiplayer" class="menu-btn" style="
+            padding:14px 32px;
+            background:linear-gradient(135deg,rgba(150,100,255,0.3),rgba(130,80,255,0.2));
+            border:1px solid rgba(150,100,255,0.4);
+            border-radius:12px;
+            color:#DDA0DD;
+            font-size:15px;
+            cursor:pointer;
+            transition:all 0.2s;
+          ">🌐 联机模式</button>
+
           <button id="menu-help" class="menu-btn" style="
             padding:14px 32px;
             background:linear-gradient(135deg,rgba(180,100,200,0.3),rgba(160,80,180,0.2));
@@ -1126,6 +1425,26 @@ export class UIManager extends EventEmitter {
     document.getElementById('menu-settings')?.addEventListener('click', () => {
       menu.remove();
       this.showSettingsMenu();
+    });
+
+    document.getElementById('menu-inventory')?.addEventListener('click', () => {
+      menu.remove();
+      this.showInventoryPanel();
+    });
+
+    document.getElementById('menu-achievements')?.addEventListener('click', () => {
+      menu.remove();
+      this.showAchievementsPanel();
+    });
+
+    document.getElementById('menu-friends')?.addEventListener('click', () => {
+      menu.remove();
+      this.showFriendsPanel();
+    });
+
+    document.getElementById('menu-multiplayer')?.addEventListener('click', () => {
+      menu.remove();
+      this.showMultiplayerPanel();
     });
 
     document.getElementById('menu-help')?.addEventListener('click', () => {
@@ -1224,6 +1543,202 @@ export class UIManager extends EventEmitter {
     document.getElementById('close-settings')?.addEventListener('click', () => menu.remove());
     menu.addEventListener('click', (e) => {
       if (e.target === menu) menu.remove();
+    });
+  }
+
+  private showFriendsPanel(): void {
+    const existing = document.getElementById('friends-panel');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const panel = document.createElement('div');
+    panel.id = 'friends-panel';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      color: '#fff',
+      padding: '24px',
+      borderRadius: '16px',
+      fontSize: '14px',
+      zIndex: '1000',
+      minWidth: '450px',
+      maxWidth: '600px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+    });
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">👥</span>
+          <span style="font-size:20px;font-weight:bold;">好友系统</span>
+        </div>
+        <button id="close-friends" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+      </div>
+      <div style="margin-bottom:20px;">
+        <button id="add-friend-btn" style="
+          width:100%;
+          padding:12px;
+          background:linear-gradient(135deg,rgba(100,180,255,0.3),rgba(80,160,255,0.2));
+          border:1px solid rgba(100,180,255,0.4);
+          border-radius:10px;
+          color:#87CEEB;
+          font-size:14px;
+          cursor:pointer;
+          transition:all 0.2s;
+        ">➕ 添加好友</button>
+      </div>
+      <div style="margin-bottom:16px;">
+        <div style="font-size:13px;opacity:0.7;margin-bottom:10px;">我的好友 (0)</div>
+        <div style="
+          background:rgba(255,255,255,0.05);
+          padding:30px;
+          border-radius:12px;
+          text-align:center;
+          opacity:0.6;
+        ">
+          <div style="font-size:36px;margin-bottom:8px;">🌟</div>
+          <div style="margin-bottom:4px;">暂无好友</div>
+          <div style="font-size:12px;">快去添加好友一起游玩吧！</div>
+        </div>
+      </div>
+      <div style="
+        background:rgba(100,200,100,0.1);
+        border:1px solid rgba(100,200,100,0.3);
+        border-radius:10px;
+        padding:16px;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="color:#90EE90;">💡</span>
+          <span style="font-weight:bold;color:#90EE90;">功能说明</span>
+        </div>
+        <div style="font-size:12px;opacity:0.8;line-height:1.6;">
+          好友系统可以让你与其他玩家互动、互赠礼物、拜访好友的家园。<br>
+          未来版本中将支持：<br>
+          • 添加/删除好友<br>
+          • 好友列表管理<br>
+          • 互赠虚拟礼物<br>
+          • 拜访好友家园
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(panel);
+
+    document.getElementById('close-friends')?.addEventListener('click', () => panel.remove());
+    document.getElementById('add-friend-btn')?.addEventListener('click', () => {
+      this.showNotification('添加好友功能即将推出，敬请期待！', 'info');
+    });
+    panel.addEventListener('click', (e) => {
+      if (e.target === panel) panel.remove();
+    });
+  }
+
+  private showMultiplayerPanel(): void {
+    const existing = document.getElementById('multiplayer-panel');
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const panel = document.createElement('div');
+    panel.id = 'multiplayer-panel';
+    Object.assign(panel.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      background: 'rgba(20, 25, 40, 0.98)',
+      color: '#fff',
+      padding: '24px',
+      borderRadius: '16px',
+      fontSize: '14px',
+      zIndex: '1000',
+      minWidth: '450px',
+      maxWidth: '600px',
+      maxHeight: '80vh',
+      overflowY: 'auto',
+      border: '1px solid rgba(255,255,255,0.1)',
+      boxShadow: '0 20px 60px rgba(0,0,0,0.5)'
+    });
+
+    panel.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:24px;">🌐</span>
+          <span style="font-size:20px;font-weight:bold;">联机模式</span>
+        </div>
+        <button id="close-multiplayer" style="background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:4px;">✕</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:20px;">
+        <button id="create-room-btn" style="
+          padding:16px;
+          background:linear-gradient(135deg,rgba(100,200,100,0.3),rgba(80,180,80,0.2));
+          border:1px solid rgba(100,200,100,0.4);
+          border-radius:12px;
+          color:#90EE90;
+          font-size:14px;
+          cursor:pointer;
+          transition:all 0.2s;
+          text-align:left;
+        ">
+          <div style="font-weight:bold;margin-bottom:4px;">🏠 创建房间</div>
+          <div style="font-size:12px;opacity:0.7;">创建一个新房间，邀请好友加入</div>
+        </button>
+        <button id="join-room-btn" style="
+          padding:16px;
+          background:linear-gradient(135deg,rgba(255,180,100,0.3),rgba(255,160,80,0.2));
+          border:1px solid rgba(255,180,100,0.4);
+          border-radius:12px;
+          color:#FFD700;
+          font-size:14px;
+          cursor:pointer;
+          transition:all 0.2s;
+          text-align:left;
+        ">
+          <div style="font-weight:bold;margin-bottom:4px;">🚪 加入房间</div>
+          <div style="font-size:12px;opacity:0.7;">输入房间号加入好友的房间</div>
+        </button>
+      </div>
+      <div style="
+        background:rgba(100,200,100,0.1);
+        border:1px solid rgba(100,200,100,0.3);
+        border-radius:10px;
+        padding:16px;
+      ">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+          <span style="color:#90EE90;">💡</span>
+          <span style="font-weight:bold;color:#90EE90;">功能说明</span>
+        </div>
+        <div style="font-size:12px;opacity:0.8;line-height:1.6;">
+          联机模式让你可以与好友一起游玩：<br>
+          • 最多4人同时在线<br>
+          • 实时同步作物种植和建筑建造<br>
+          • 共享天气和时间系统<br>
+          • 一起收获和交易物品<br><br>
+          <span style="color:#FFB6C1;">⚠️ 联机功能正在开发中，敬请期待！</span>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(panel);
+
+    document.getElementById('close-multiplayer')?.addEventListener('click', () => panel.remove());
+    document.getElementById('create-room-btn')?.addEventListener('click', () => {
+      this.showNotification('联机功能即将推出，敬请期待！', 'info');
+    });
+    document.getElementById('join-room-btn')?.addEventListener('click', () => {
+      this.showNotification('联机功能即将推出，敬请期待！', 'info');
+    });
+    panel.addEventListener('click', (e) => {
+      if (e.target === panel) panel.remove();
     });
   }
 

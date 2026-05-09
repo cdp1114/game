@@ -115,13 +115,29 @@ export class CropSystem extends EventEmitter {
     const cropData = this.cropConfigs.get(cropId);
     if (!cropData) {
       console.warn(`作物配置不存在: ${cropId}`);
+      this.emit('plant:failed', { reason: 'invalid_crop', message: '作物配置不存在' });
       return null;
     }
 
     // 检查季节是否适合种植
     const currentSeason = this.timeSystem.getCurrentSeason();
     if (!cropData.seasons.includes(currentSeason)) {
+      const seasonNames: Record<string, string> = {
+        'SPRING': '春季',
+        'SUMMER': '夏季',
+        'AUTUMN': '秋季',
+        'WINTER': '冬季'
+      };
+      const suitableSeasons = cropData.seasons.map(s => seasonNames[s] || s).join('、');
+      const message = `${cropData.name}只能在${suitableSeasons}种植！`;
       console.warn(`当前季节 ${currentSeason} 不适合种植 ${cropData.name}`);
+      this.emit('plant:season_mismatch', { 
+        cropId, 
+        cropName: cropData.name,
+        currentSeason,
+        suitableSeasons: cropData.seasons,
+        message 
+      });
       return null;
     }
 
