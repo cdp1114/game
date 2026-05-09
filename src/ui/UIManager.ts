@@ -265,7 +265,7 @@ export class UIManager extends EventEmitter {
     }
   }
 
-  public showNotification(message: string, type: 'info' | 'success' | 'warning' = 'info'): void {
+  public showNotification(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
     if (!this.notificationContainer) return;
     
     const notification = document.createElement('div');
@@ -416,32 +416,49 @@ export class UIManager extends EventEmitter {
     if (!cropList) return;
 
     const crops = this.getAvailableCrops();
+    
+    const seasonNames: Record<string, string> = {
+      'SPRING': '🌸',
+      'SUMMER': '☀️',
+      'AUTUMN': '🍂',
+      'WINTER': '❄️'
+    };
+    const currentSeason = this.getCurrentSeason?.() || 'SPRING';
+
     if (crops.length === 0) {
       cropList.innerHTML = '<div style="padding:20px;text-align:center;opacity:0.7;">当前季节没有可种植的作物</div>';
       return;
     }
 
-    cropList.innerHTML = crops.map(crop => `
-      <div class="crop-item" data-crop-id="${crop.id}" style="
-        background: rgba(255,255,255,0.08);
-        padding: 12px;
-        border-radius: 10px;
-        cursor: pointer;
-        min-width: 120px;
-        text-align: center;
-        transition: all 0.2s;
-        border: 1px solid transparent;
-      " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,200,100,0.5)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='transparent';">
-        <div style="font-size:24px;margin-bottom:4px;">${this.getCropEmoji(crop.id)}</div>
-        <div style="font-weight:bold;margin-bottom:4px;">${crop.name}</div>
-        <div style="font-size:11px;opacity:0.7;">
-          生长时间: ${crop.growthTime}分钟
+    cropList.innerHTML = crops.map(crop => {
+      const seasonIcons = crop.seasons.map((s: string) => seasonNames[s] || s).join('');
+      const isCurrentSeason = crop.seasons.includes(currentSeason);
+      
+      return `
+        <div class="crop-item" data-crop-id="${crop.id}" style="
+          background: rgba(255,255,255,0.08);
+          padding: 12px;
+          border-radius: 10px;
+          cursor: pointer;
+          min-width: 120px;
+          text-align: center;
+          transition: all 0.2s;
+          border: 1px solid ${isCurrentSeason ? 'rgba(100,200,100,0.5)' : 'transparent'};
+        " onmouseover="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(100,200,100,0.8)';" onmouseout="this.style.background='rgba(255,255,255,0.08)';this.style.borderColor='${isCurrentSeason ? 'rgba(100,200,100,0.5)' : 'transparent'}';">
+          <div style="font-size:24px;margin-bottom:4px;">${this.getCropEmoji(crop.id)}</div>
+          <div style="font-weight:bold;margin-bottom:4px;">${crop.name}</div>
+          <div style="font-size:11px;opacity:0.7;">
+            生长时间: ${crop.growthTime}分钟
+          </div>
+          <div style="font-size:10px;margin-top:4px;color:#aaa;">
+            适合: ${seasonIcons}
+          </div>
+          <div style="font-size:11px;color:#90EE90;margin-top:4px;">
+            收获: ${crop.harvestYield.map((y: { itemId: string; amount: number }) => `${y.itemId} x${y.amount}`).join(', ')}
+          </div>
         </div>
-        <div style="font-size:11px;color:#90EE90;">
-          收获: ${crop.harvestYield.map((y: { itemId: string; amount: number }) => `${y.itemId} x${y.amount}`).join(', ')}
-        </div>
-      </div>
-    `).join('');
+      `;
+    }).join('');
 
     cropList.querySelectorAll('.crop-item').forEach(item => {
       item.addEventListener('click', () => {
