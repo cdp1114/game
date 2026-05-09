@@ -1,357 +1,288 @@
 import * as THREE from 'three';
 import { EventEmitter } from '../core/EventEmitter';
-import { VoxelTerrain, BlockType } from './VoxelTerrain';
+
+export interface PlayerControls {
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
+  jump: boolean;
+  sprint: boolean;
+}
 
 export class FirstPersonController extends EventEmitter {
   private camera: THREE.PerspectiveCamera;
   private domElement: HTMLElement;
-  private voxelTerrain: VoxelTerrain;
+  private velocity: THREE.Vector3;
+  private direction: THREE.Vector3;
   
-  private moveForward: boolean = false;
-  private moveBackward: boolean = false;
-  private moveLeft: boolean = false;
-  private moveRight: boolean = false;
-  private jump: boolean = false;
-  private sprint: boolean = false;
-  
-  private yaw: number = 0;
-  private pitch: number = 0;
-  
-  private velocity: THREE.Vector3 = new THREE.Vector3();
-  private direction: THREE.Vector3 = new THREE.Vector3();
-  
-  private position: THREE.Vector3;
-  
-  private isLocked: boolean = false;
-  
-  private moveSpeed: number = 5;
+  private moveSpeed: number = 8;
   private sprintMultiplier: number = 1.6;
   private jumpForce: number = 8;
   private gravity: number = 20;
   
+  private isLocked: boolean = false;
+  private playerHeight: number = 1.7;
+  private playerRadius: number = 0.3;
+  
+  private controls: PlayerControls = {
+    forward: false,
+    backward: false,
+    left: false,
+    right: false,
+    jump: false,
+    sprint: false
+  };
+  
+  private euler: THREE.Euler;
+  
+  private terrain: any = null;
   private onGround: boolean = false;
-  private selectedBlockType: BlockType = BlockType.GRASS;
-  
-  private raycaster: THREE.Raycaster;
-  private highlightMesh: THREE.Mesh;
-  
-  constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement, voxelTerrain: VoxelTerrain) {
+  private verticalVelocity: number = 0;
+
+  constructor(camera: THREE.PerspectiveCamera, domElement: HTMLElement) {
     super();
+    
     this.camera = camera;
     this.domElement = domElement;
-    this.voxelTerrain = voxelTerrain;
     
-    this.position = new THREE.Vector3(32, 20, 32);
-    this.camera.position.copy(this.position);
+    this.velocity = new THREE.Vector3();
+    this.direction = new THREE.Vector3();
+    this.euler = new THREE.Euler(0, 0, 0, 'YXZ');
     
-    this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 6;
-    
-    const highlightGeometry = new THREE.BoxGeometry(1.01, 1.01, 1.01);
-    const highlightMaterial = new THREE.MeshBasicMaterial({
-      color: 0x000000,
-      transparent: true,
-      opacity: 0.3,
-      wireframe: true
-    });
-    this.highlightMesh = new THREE.Mesh(highlightGeometry, highlightMaterial);
-    this.highlightMesh.visible = false;
+    this.camera.position.y = this.playerHeight;
     
     this.setupEventListeners();
   }
-  
+
   private setupEventListeners(): void {
-    document.addEventListener('keydown', this.onKeyDown.bind(this));
-    document.addEventListener('keyup', this.onKeyUp.bind(this));
-    document.addEventListener('mousemove', this.onMouseMove.bind(this));
-    document.addEventListener('mousedown', this.onMouseDown.bind(this));
-    document.addEventListener('wheel', this.onWheel.bind(this));
-    
-    this.domElement.addEventListener('click', () => {
-      if (!this.isLocked) {
-        this.domElement.requestPointerLock();
-      }
-    });
-    
-    document.addEventListener('pointerlockchange', () => {
-      this.isLocked = document.pointerLockElement === this.domElement;
-    });
+    document.addEventListener('keydown', (e) => this.onKeyDown(e));
+    document.addEventListener('keyup', (e) => this.onKeyUp(e));
+    document.addEventListener('mousemove', (e) => this.onMouseMove(e));
+    document.addEventListener('click', () => this.requestLock());
+    document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
   }
-  
+
+  public setTerrain(terrain: any): void {
+    this.terrain = terrain;
+  }
+
+  private requestLock(): void {
+    if (!this.isLocked) {
+      this.domElement.requestPointerLock();
+    }
+  }
+
+  private onPointerLockChange(): void {
+    this.isLocked = document.pointerLockElement === this.domElement;
+    this.emit('lockChange', { locked: this.isLocked });
+  }
+
   private onKeyDown(event: KeyboardEvent): void {
-    if (!this.isLocked) return;
-    
     switch (event.code) {
       case 'KeyW':
       case 'ArrowUp':
-        this.moveForward = true;
+        this.controls.forward = true;
         break;
       case 'KeyS':
       case 'ArrowDown':
-        this.moveBackward = true;
+        this.controls.backward = true;
         break;
       case 'KeyA':
       case 'ArrowLeft':
-        this.moveLeft = true;
+        this.controls.left = true;
         break;
       case 'KeyD':
       case 'ArrowRight':
-        this.moveRight = true;
+        this.controls.right = true;
         break;
       case 'Space':
-        this.jump = true;
+        this.controls.jump = true;
         break;
       case 'ShiftLeft':
       case 'ShiftRight':
-        this.sprint = true;
-        break;
-      case 'KeyE':
-        this.emit('openInventory');
-        break;
-      case 'KeyF':
-        this.emit('togglePerspective');
-        break;
-      case 'KeyT':
-        this.emit('openChat');
+        this.controls.sprint = true;
         break;
     }
   }
-  
+
   private onKeyUp(event: KeyboardEvent): void {
     switch (event.code) {
       case 'KeyW':
       case 'ArrowUp':
-        this.moveForward = false;
+        this.controls.forward = false;
         break;
       case 'KeyS':
       case 'ArrowDown':
-        this.moveBackward = false;
+        this.controls.backward = false;
         break;
       case 'KeyA':
       case 'ArrowLeft':
-        this.moveLeft = false;
+        this.controls.left = false;
         break;
       case 'KeyD':
       case 'ArrowRight':
-        this.moveRight = false;
+        this.controls.right = false;
         break;
       case 'Space':
-        this.jump = false;
+        this.controls.jump = false;
         break;
       case 'ShiftLeft':
       case 'ShiftRight':
-        this.sprint = false;
+        this.controls.sprint = false;
         break;
     }
   }
-  
+
   private onMouseMove(event: MouseEvent): void {
     if (!this.isLocked) return;
+
+    const movementX = event.movementX || 0;
+    const movementY = event.movementY || 0;
+
+    this.euler.setFromQuaternion(this.camera.quaternion);
+    this.euler.y -= movementX * 0.002;
+    this.euler.x -= movementY * 0.002;
     
-    const sensitivity = 0.002;
+    this.euler.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.euler.x));
     
-    this.yaw -= event.movementX * sensitivity;
-    this.pitch -= event.movementY * sensitivity;
-    
-    this.pitch = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch));
+    this.camera.quaternion.setFromEuler(this.euler);
   }
-  
-  private onMouseDown(event: MouseEvent): void {
-    if (!this.isLocked) return;
-    
-    if (event.button === 0) {
-      this.breakBlock();
-    } else if (event.button === 2) {
-      this.placeBlock();
-    }
-  }
-  
-  private onWheel(event: WheelEvent): void {
-    if (!this.isLocked) return;
-    
-    const allBlocks = this.voxelTerrain.getAllBlockTypes();
-    const currentIndex = allBlocks.indexOf(this.selectedBlockType);
-    
-    if (event.deltaY > 0) {
-      this.selectedBlockType = allBlocks[(currentIndex + 1) % allBlocks.length];
-    } else {
-      this.selectedBlockType = allBlocks[(currentIndex - 1 + allBlocks.length) % allBlocks.length];
-    }
-    
-    this.emit('blockSelected', { type: this.selectedBlockType });
-  }
-  
-  private breakBlock(): void {
-    const result = this.voxelTerrain.raycast(
-      this.camera.position,
-      new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion),
-      6
-    );
-    
-    if (result.hit && result.position) {
-      const drops = this.voxelTerrain.breakBlock(result.position.x, result.position.y, result.position.z);
-      if (drops) {
-        this.emit('blockMined', { position: result.position, drops });
-      }
-    }
-  }
-  
-  private placeBlock(): void {
-    const result = this.voxelTerrain.raycast(
-      this.camera.position,
-      new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion),
-      6
-    );
-    
-    if (result.block) {
-      const placed = this.voxelTerrain.placeBlock(result.block.x, result.block.y, result.block.z, this.selectedBlockType);
-      if (placed) {
-        this.emit('blockPlaced', { position: result.block, type: this.selectedBlockType });
-      }
-    }
-  }
-  
+
   public update(deltaTime: number): void {
-    const dt = deltaTime / 1000;
+    if (!this.isLocked) return;
+
+    const speed = this.moveSpeed * (this.controls.sprint ? this.sprintMultiplier : 1);
     
-    this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
-    this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
+    this.direction.z = Number(this.controls.forward) - Number(this.controls.backward);
+    this.direction.x = Number(this.controls.right) - Number(this.controls.left);
     this.direction.normalize();
-    
-    const speed = this.moveSpeed * (this.sprint ? this.sprintMultiplier : 1);
-    
-    if (this.onGround) {
-      if (this.direction.z !== 0) {
-        this.velocity.z = this.direction.z * speed;
-      } else {
-        this.velocity.z = 0;
-      }
-      
-      if (this.direction.x !== 0) {
-        this.velocity.x = this.direction.x * speed;
-      } else {
-        this.velocity.x = 0;
-      }
-      
-      if (this.jump) {
-        this.velocity.y = this.jumpForce;
-        this.onGround = false;
-      }
+
+    if (this.controls.forward || this.controls.backward) {
+      this.velocity.z = this.direction.z * speed;
+    } else {
+      this.velocity.z = 0;
     }
-    
-    this.velocity.y -= this.gravity * dt;
-    
-    const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-    const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.yaw);
-    
-    const moveX = (forward.x * this.velocity.z + right.x * this.velocity.x) * dt;
-    const moveZ = (forward.z * this.velocity.z + right.z * this.velocity.x) * dt;
-    const moveY = this.velocity.y * dt;
-    
-    const newX = this.checkCollision(this.position.x + moveX, this.position.y, this.position.z, 0.3, 1.8).x;
-    const newZ = this.checkCollision(newX, this.position.y, this.position.z + moveZ, 0.3, 1.8).z;
-    let newY = this.position.y + moveY;
-    
-    if (moveY < 0) {
-      const feetY = this.checkCollision(newX, newY, newZ, 0.3, 1.8).y;
-      if (feetY !== newY) {
-        newY = feetY;
-        this.velocity.y = 0;
+
+    if (this.controls.left || this.controls.right) {
+      this.velocity.x = this.direction.x * speed;
+    } else {
+      this.velocity.x = 0;
+    }
+
+    const forward = new THREE.Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+    const moveX = right.x * this.velocity.x + forward.x * this.velocity.z;
+    const moveZ = right.z * this.velocity.x + forward.z * this.velocity.z;
+
+    const newX = this.camera.position.x + moveX * deltaTime;
+    const newZ = this.camera.position.z + moveZ * deltaTime;
+
+    if (this.terrain) {
+      const groundY = this.terrain.getGroundHeight(newX, newZ);
+      const targetY = groundY + this.playerHeight;
+      
+      if (this.controls.jump && this.onGround) {
+        this.verticalVelocity = this.jumpForce;
+        this.onGround = false;
+        this.emit('jump');
+      }
+      
+      this.verticalVelocity -= this.gravity * deltaTime;
+      
+      let newY = this.camera.position.y + this.verticalVelocity * deltaTime;
+      
+      if (newY < targetY) {
+        newY = targetY;
+        this.verticalVelocity = 0;
         this.onGround = true;
       }
-    } else {
-      const headY = this.checkCollision(newX, newY + 1.8, newZ, 0.3, 0.1).y;
-      if (headY !== newY + 1.8) {
-        newY = headY - 1.8;
-        this.velocity.y = 0;
+
+      if (this.checkCollision(newX, newY, newZ)) {
+        if (!this.checkCollision(newX, this.camera.position.y, this.camera.position.z)) {
+          this.camera.position.x = newX;
+        }
+        if (!this.checkCollision(this.camera.position.x, this.camera.position.y, newZ)) {
+          this.camera.position.z = newZ;
+        }
+      } else {
+        this.camera.position.x = newX;
+        this.camera.position.y = newY;
+        this.camera.position.z = newZ;
       }
+    } else {
+      this.camera.position.x = newX;
+      this.camera.position.z = newZ;
     }
-    
-    this.position.set(newX, newY, newZ);
-    this.camera.position.copy(this.position);
-    this.camera.position.y += 1.6;
-    
-    this.camera.rotation.order = 'YXZ';
-    this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch;
-    
-    this.updateBlockHighlight();
-    
-    this.emit('positionChanged', { position: this.position.clone() });
+
+    if (this.controls.forward || this.backward || this.left || this.right) {
+      this.emit('move', { 
+        position: this.camera.position.clone(),
+        speed: speed
+      });
+    }
   }
-  
-  private checkCollision(x: number, y: number, z: number, radius: number, height: number): THREE.Vector3 {
-    const result = new THREE.Vector3(x, y, z);
-    
+
+  private get backward(): boolean {
+    return this.controls.backward;
+  }
+
+  private get left(): boolean {
+    return this.controls.left;
+  }
+
+  private get right(): boolean {
+    return this.controls.right;
+  }
+
+  private checkCollision(x: number, y: number, z: number): boolean {
+    if (!this.terrain) return false;
+
     const checkPoints = [
-      [x - radius, y, z - radius],
-      [x + radius, y, z - radius],
-      [x - radius, y, z + radius],
-      [x + radius, y, z + radius],
-      [x - radius, y + height, z - radius],
-      [x + radius, y + height, z - radius],
-      [x - radius, y + height, z + radius],
-      [x + radius, y + height, z + radius],
+      { x: x - this.playerRadius, z: z - this.playerRadius },
+      { x: x + this.playerRadius, z: z - this.playerRadius },
+      { x: x - this.playerRadius, z: z + this.playerRadius },
+      { x: x + this.playerRadius, z: z + this.playerRadius }
     ];
-    
+
     for (const point of checkPoints) {
-      const bx = Math.floor(point[0]);
-      const by = Math.floor(point[1]);
-      const bz = Math.floor(point[2]);
-      
-      const block = this.voxelTerrain.getBlock(bx, by, bz);
-      const data = this.voxelTerrain.getBlockData(block);
-      
-      if (block !== BlockType.AIR && data?.solid) {
-        return result;
+      const groundY = this.terrain.getGroundHeight(point.x, point.z);
+      if (y < groundY + this.playerHeight + 0.1) {
+        return true;
       }
     }
-    
-    return result;
+
+    return false;
   }
-  
-  private updateBlockHighlight(): void {
-    const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(this.camera.quaternion);
-    const result = this.voxelTerrain.raycast(this.camera.position, direction, 6);
-    
-    if (result.hit && result.position) {
-      this.highlightMesh.position.set(
-        result.position.x + 0.5,
-        result.position.y + 0.5,
-        result.position.z + 0.5
-      );
-      this.highlightMesh.visible = true;
-    } else {
-      this.highlightMesh.visible = false;
-    }
-  }
-  
-  public setSelectedBlock(type: BlockType): void {
-    this.selectedBlockType = type;
-  }
-  
-  public getSelectedBlock(): BlockType {
-    return this.selectedBlockType;
-  }
-  
+
   public getPosition(): THREE.Vector3 {
-    return this.position.clone();
+    return this.camera.position.clone();
   }
-  
-  public setPosition(x: number, y: number, z: number): void {
-    this.position.set(x, y, z);
-    this.camera.position.copy(this.position);
-    this.camera.position.y += 1.6;
+
+  public setPosition(position: THREE.Vector3): void {
+    this.camera.position.copy(position);
+    this.camera.position.y = this.playerHeight;
   }
-  
+
+  public isPointerLocked(): boolean {
+    return this.isLocked;
+  }
+
+  public unlock(): void {
+    document.exitPointerLock();
+  }
+
   public dispose(): void {
-    document.removeEventListener('keydown', this.onKeyDown.bind(this));
-    document.removeEventListener('keyup', this.onKeyUp.bind(this));
-    document.removeEventListener('mousemove', this.onMouseMove.bind(this));
-    document.removeEventListener('mousedown', this.onMouseDown.bind(this));
-    document.removeEventListener('wheel', this.onWheel.bind(this));
-    
-    this.highlightMesh.geometry.dispose();
-    (this.highlightMesh.material as THREE.Material).dispose();
+    document.removeEventListener('keydown', this.onKeyDown as any);
+    document.removeEventListener('keyup', this.onKeyUp as any);
+    document.removeEventListener('mousemove', this.onMouseMove);
+    document.removeEventListener('click', this.requestLock);
+    document.removeEventListener('pointerlockchange', this.onPointerLockChange);
   }
 }
